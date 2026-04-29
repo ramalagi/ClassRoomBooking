@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: room-booking-app
+    env: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    envVars:
+      - key: FLASK_SECRET_KEY
+        value: "replace_with_secure_value"
+      - key: DATABASE_URL
+        value: "postgres://your_user:your_password@your_host:5432/RoomBooking"
+databases:
+  - name: room-booking-db
+    engine: postgres
+    plan: free
+    region: oregon
+    version: "15"
+    databaseName: RoomBooking

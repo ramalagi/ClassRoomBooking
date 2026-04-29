@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Room Booking Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container">
+            <a class="navbar-brand" href="#">Room Booking</a>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text me-3">Welcome, {{ user.username }} ({{ user.role }})</span>
+                {% if user.role == 'admin' %}
+                <a class="nav-link" href="{{ url_for('admin') }}">Admin</a>
+                {% endif %}
+                <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+            </div>
+        </div>
+    </nav>
+    <div class="container mt-5">
+        <h1>Room Booking Dashboard</h1>
+        {% with messages = get_flashed_messages() %}
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-info">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        <form method="GET" class="mb-3">
+            <label for="date" class="form-label">Select Date:</label>
+            <input type="date" id="date" name="date" value="{{ date }}" class="form-control" min="{{ today }}" onchange="this.form.submit()">
+        </form>
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Room</th>
+                    {% for ts in timeslots %}
+                    <th>{{ ts.day }} {{ ts.period }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for room in rooms %}
+                <tr>
+                    <td>{{ room.name }} ({{ room.type }})</td>
+                    {% for ts in timeslots %}
+                    <td class="{% if grid[room.id][ts.id]['status'] == 'available' %}table-success{% elif grid[room.id][ts.id]['status'] == 'busy' %}table-danger{% else %}table-secondary{% endif %}">
+                        {% if grid[room.id][ts.id]['status'] == 'available' %}
+                            <a href="{{ url_for('book', date=date, room_id=room.id, timeslot_id=ts.id) }}" class="btn btn-primary btn-sm">Book</a>
+                        {% elif grid[room.id][ts.id]['status'] == 'busy' %}
+                            Booked by {{ grid[room.id][ts.id]['staff'] }}
+                            {% if user.role == 'admin' or grid[room.id][ts.id]['user_id'] == user['user_id'] %}
+                            <br><a href="{{ url_for('cancel', booking_id=grid[room.id][ts.id]['booking_id']) }}" class="btn btn-danger btn-sm mt-1">Cancel</a>
+                            {% endif %}
+                        {% else %}
+                            Unavailable
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
