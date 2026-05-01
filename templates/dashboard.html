@@ -32,6 +32,9 @@
             <label for="date" class="form-label">Select Date:</label>
             <input type="date" id="date" name="date" value="{{ date }}" class="form-control" min="{{ today }}" onchange="this.form.submit()">
         </form>
+        <div class="mb-3">
+            <strong>Day:</strong> {{ selected_day }}
+        </div>
         <table class="table table-bordered">
             <thead>
                 <tr>

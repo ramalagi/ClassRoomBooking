@@ -57,7 +57,8 @@ def dashboard():
     date = datetime.strptime(date_str, '%Y-%m-%d').date()
     
     rooms = get_rooms()
-    timeslots = get_timeslots()
+    selected_day = date.strftime('%A')
+    timeslots = [ts for ts in get_timeslots() if ts.day == selected_day]
     bookings = get_bookings_for_date(date)
     
     # Create a grid: room vs timeslot
@@ -81,7 +82,8 @@ def dashboard():
         grid[room_id][timeslot_id] = {'status': 'busy', 'staff': username, 'booking_id': booking_id, 'user_id': user_id}
     
     today = datetime.now().date()
-    return render_template('dashboard.html', grid=grid, rooms=rooms, timeslots=timeslots, date=date_str, today=today, user=session)
+    selected_day = date.strftime('%A')
+    return render_template('dashboard.html', grid=grid, rooms=rooms, timeslots=timeslots, date=date_str, today=today, selected_day=selected_day, user=session)
 
 @app.route('/book', methods=['GET', 'POST'])
 @login_required
