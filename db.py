@@ -8,7 +8,7 @@ def get_db_connection():
         return psycopg2.connect(database_url)
 
     host = os.getenv('PGHOST', 'localhost')
-    database = os.getenv('PGDATABASE', 'RoomBooking')
+    database = os.getenv('PGDATABASE', 'roombooking')
     user = os.getenv('PGUSER')
     password = os.getenv('PGPASSWORD')
     port = os.getenv('PGPORT', '5432')
