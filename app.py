@@ -109,6 +109,9 @@ def book():
         # If today, check if the period has already started
         if date == today and now.hour >= start_hour:
             return "Cannot book for past or current time slots."
+
+        if timeslot.day != date.strftime('%A'):
+            return f"Selected timeslot day ({timeslot.day}) does not match the chosen date ({date.strftime('%A')})."
         
         if make_booking(user_id, room_id, timeslot_id, date):
             return redirect(url_for('dashboard', date=date_str))
@@ -121,16 +124,17 @@ def book():
     date = datetime.strptime(date_str, '%Y-%m-%d').date()
     today = datetime.now().date()
     now_hour = datetime.now().hour
+    selected_day = date.strftime('%A')
     
-    # Filter timeslots for past prevention
+    # Filter timeslots for the selected day and to prevent past bookings
     if date < today:
         filtered_timeslots = []
     elif date == today:
-        filtered_timeslots = [ts for ts in timeslots if int(ts.period.split('-')[0].split(':')[0]) > now_hour]
+        filtered_timeslots = [ts for ts in timeslots if ts.day == selected_day and int(ts.period.split('-')[0].split(':')[0]) > now_hour]
     else:
-        filtered_timeslots = timeslots
+        filtered_timeslots = [ts for ts in timeslots if ts.day == selected_day]
     
-    return render_template('book.html', rooms=rooms, timeslots=filtered_timeslots, date=date_str, today=today, user=session)
+    return render_template('book.html', rooms=rooms, timeslots=filtered_timeslots, date=date_str, today=today, selected_day=selected_day, user=session)
 
 @app.route('/cancel/<int:booking_id>')
 @login_required

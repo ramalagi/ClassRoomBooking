@@ -30,9 +30,22 @@
                 <label for="date" class="form-label">Date:</label>
                 <input type="date" id="date" name="date" value="{{ date }}" class="form-control" min="{{ today }}" required>
             </div>
+            <div class="mb-3">
+                <label class="form-label">Day:</label>
+                <input type="text" class="form-control" value="{{ selected_day }}" readonly>
+            </div>
             <button type="submit" class="btn btn-primary">Book</button>
             <a href="{{ url_for('dashboard', date=date) }}" class="btn btn-secondary">Cancel</a>
         </form>
     </div>
+    <script>
+        const dateInput = document.getElementById('date');
+        dateInput.addEventListener('change', function() {
+            const selectedDate = this.value;
+            if (selectedDate) {
+                window.location.href = '{{ url_for('book') }}?date=' + selectedDate;
+            }
+        });
+    </script>
 </body>
 </html>
