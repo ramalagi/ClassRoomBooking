@@ -49,7 +49,7 @@
                 <tr>
                     <td>{{ room.name }} ({{ room.type }})</td>
                     {% for ts in timeslots %}
-                    <td class="{% if grid[room.id][ts.id]['status'] == 'available' %}table-success{% elif grid[room.id][ts.id]['status'] == 'busy' %}table-danger{% else %}table-secondary{% endif %}">
+                    <td class="{% if grid[room.id][ts.id]['status'] == 'available' %}table-success{% elif grid[room.id][ts.id]['status'] == 'busy' %}table-danger{% else %}table-secondary{% endif %}" data-status="{{ grid[room.id][ts.id]['status'] }}" data-start-time="{{ ts.period.split('-')[0] }}">
                         {% if grid[room.id][ts.id]['status'] == 'available' %}
                             <a href="{{ url_for('book', date=date, room_id=room.id, timeslot_id=ts.id) }}" class="btn btn-primary btn-sm">Book</a>
                         {% elif grid[room.id][ts.id]['status'] == 'busy' %}
@@ -67,5 +67,26 @@
             </tbody>
         </table>
     </div>
+    <script>
+        const selectedDate = new Date('{{ date }}T00:00:00');
+        const localNow = new Date();
+        const todayLocal = new Date(localNow.getFullYear(), localNow.getMonth(), localNow.getDate());
+        const isSameDay = selectedDate.getTime() === todayLocal.getTime();
+        const isPastDay = selectedDate.getTime() < todayLocal.getTime();
+
+        document.querySelectorAll('td[data-status]').forEach(cell => {
+            const status = cell.dataset.status;
+            const startTime = cell.dataset.startTime;
+            const startHour = parseInt(startTime.split(':')[0], 10);
+
+            if (status === 'available') {
+                if (isPastDay || (isSameDay && startHour <= localNow.getHours())) {
+                    cell.className = 'table-secondary';
+                    cell.dataset.status = 'unavailable';
+                    cell.innerHTML = 'Unavailable';
+                }
+            }
+        });
+    </script>
 </body>
 </html>
