@@ -1,4 +1,9 @@
 from db import get_db_connection
+from collections import namedtuple
+
+# Simple data classes for returned objects
+Room = namedtuple('Room', ['id', 'name', 'type'])
+TimeSlot = namedtuple('TimeSlot', ['id', 'day', 'period'])
 
 def create_database():
     # PostgreSQL database creation is usually handled outside the app.
@@ -97,19 +102,19 @@ def get_rooms():
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id, name, type FROM Rooms")
-    rooms = cursor.fetchall()
+    rooms_data = cursor.fetchall()
     cursor.close()
     conn.close()
-    return rooms
+    return [Room(id=r[0], name=r[1], type=r[2]) for r in rooms_data]
 
 def get_timeslots():
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT id, day, period FROM TimeSlots")
-    timeslots = cursor.fetchall()
+    timeslots_data = cursor.fetchall()
     cursor.close()
     conn.close()
-    return timeslots
+    return [TimeSlot(id=ts[0], day=ts[1], period=ts[2]) for ts in timeslots_data]
 
 def get_user(username, password):
     conn = get_db_connection()
