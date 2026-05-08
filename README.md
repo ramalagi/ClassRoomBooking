@@ -1,25 +1,48 @@
-# Room Booking System
+# Room Booking and Attendance Management System
 
-A Python Flask web application for booking classrooms and meeting rooms.
+A Python Flask web application for booking classrooms and managing student attendance.
+
+## Features
+
+- **Room Booking**: Book classrooms and meeting rooms by date and time slot.
+- **Attendance Management**: Mark and track student attendance with modern UI.
+  - Mark attendance by batch/session/date
+  - Bulk operations (mark all present/absent, copy previous)
+  - Attendance history and analytics
+  - Reports with charts and exports (CSV, Excel)
+  - Role-based access (Admin, Faculty, Student)
 
 ## Setup
 
 1. Install Python 3.x
-3. Install PostgreSQL and create a database named `RoomBooking`.
-4. Install dependencies: `pip install -r requirements.txt`
-5. Set environment variables as needed:
+2. Install SQL Server and create a database named `RoomBooking`.
+3. Install dependencies: `pip install -r requirements.txt`
+4. Set environment variables as needed:
    - `FLASK_SECRET_KEY`
-   - `DATABASE_URL` = `postgres://user:password@host:5432/RoomBooking`
-   - or use `PGHOST`, `PGDATABASE`, `PGUSER`, `PGPASSWORD`, `PGPORT`
-6. Initialize database: `python init_db.py`
-7. Run the app: `python app.py`
+   - `DB_SERVER` (default: localhost)
+   - `DB_NAME` (default: RoomBooking)
+   - `DB_USER`
+   - `DB_PASSWORD`
+   - `DB_DRIVER` (default: {ODBC Driver 17 for SQL Server})
+5. Initialize database: Run `python app.py` once to create tables and sample data.
+6. Run the app: `python app.py`
 
 ## Login
 
 Use the sample credentials:
 
 - Admin: `admin` / `admin123`
-- User: `user1` / `user123`
+- Faculty: `faculty1` / `faculty123`
+- Student: `student1` / `student123`
+
+## UI Features
+
+- Responsive design for desktop, tablet, mobile
+- Modern Bootstrap 5 UI with icons
+- Color-coded attendance statuses
+- Interactive charts with Chart.js
+- Dark mode support (toggle in navbar)
+- Loading states and animations
 
 ## Deployment
 
@@ -29,7 +52,7 @@ Use the sample credentials:
 2. Initialize the repo if needed:
    - `git init`
    - `git add .`
-   - `git commit -m "Initial room booking app"`
+   - `git commit -m "Initial app with attendance management"`
 3. Create a GitHub repository and add it as a remote:
    - `git remote add origin https://github.com/<your-username>/<repo-name>.git`
 4. Push the code:
@@ -40,13 +63,11 @@ Use the sample credentials:
 1. Sign up at https://render.com and connect your GitHub account.
 2. Push your repo to GitHub. Render detects `render.yaml` and can create services automatically.
 3. In Render, create a new service by selecting your repository and branch.
-4. Render will use `render.yaml` to configure the web service and PostgreSQL database.
+4. Render will use `render.yaml` to configure the web service and SQL Server database.
 5. Set the secret environment variable:
    - `FLASK_SECRET_KEY`
 
-If `DATABASE_URL` is not automatically configured, add it manually with the Render database connection string.
-
-### Automatic deployment setup
+If database connection is not automatically configured, add environment variables for SQL Server.
 
 - `render.yaml` defines the Python web service and a managed PostgreSQL database.
 - When you push changes to GitHub, Render automatically rebuilds and redeploys the app.

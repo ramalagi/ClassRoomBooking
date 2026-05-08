@@ -1,51 +1,54 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Book Room</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body>
-    <div class="container mt-5">
-        <h1>Book a Room</h1>
-        <form method="POST">
-            <div class="mb-3">
-                <label for="room_id" class="form-label">Room:</label>
-                <select id="room_id" name="room_id" class="form-select" required>
-                    {% for room in rooms %}
-                    <option value="{{ room.id }}">{{ room.name }} ({{ room.type }})</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="mb-3">
-                <label for="timeslot_id" class="form-label">Time Slot:</label>
-                <select id="timeslot_id" name="timeslot_id" class="form-select" required>
-                    {% for ts in timeslots %}
-                    <option value="{{ ts.id }}">{{ ts.day }} {{ ts.period }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="mb-3">
-                <label for="date" class="form-label">Date:</label>
-                <input type="date" id="date" name="date" value="{{ date }}" class="form-control" min="{{ today }}" required>
-            </div>
-            <div class="mb-3">
-                <label class="form-label">Day:</label>
-                <input type="text" class="form-control" value="{{ selected_day }}" readonly>
-            </div>
+﻿{% extends 'base.html' %}
+
+{% block title %}Book Room - NTTF Management{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header">
+        <h1 class="page-title"><i class="bi bi-door-open me-2"></i>Book a Room</h1>
+        <p class="page-subtitle">Reserve rooms for future sessions and review available slots.</p>
+    </div>
+
+    <form method="POST" class="row g-4">
+        <div class="col-md-6">
+            <label for="room_id" class="form-label">Room</label>
+            <select id="room_id" name="room_id" class="form-select" required>
+                {% for room in rooms %}
+                <option value="{{ room.id }}">{{ room.name }} ({{ room.type }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label for="timeslot_id" class="form-label">Time Slot</label>
+            <select id="timeslot_id" name="timeslot_id" class="form-select" required>
+                {% for ts in timeslots %}
+                <option value="{{ ts.id }}">{{ ts.day }} {{ ts.period }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label for="date" class="form-label">Date</label>
+            <input type="date" id="date" name="date" value="{{ date }}" class="form-control" min="{{ today }}" required>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Day</label>
+            <input type="text" class="form-control" value="{{ selected_day }}" readonly>
+        </div>
+        <div class="col-md-4 d-flex align-items-end justify-content-end gap-2">
             <button type="submit" class="btn btn-primary">Book</button>
             <a href="{{ url_for('dashboard', date=date) }}" class="btn btn-secondary">Cancel</a>
-        </form>
-    </div>
-    <script>
-        const dateInput = document.getElementById('date');
-        dateInput.addEventListener('change', function() {
-            const selectedDate = this.value;
-            if (selectedDate) {
-                window.location.href = '{{ url_for('book') }}?date=' + selectedDate;
-            }
-        });
-    </script>
-</body>
-</html>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById('date').addEventListener('change', function () {
+        const selectedDate = this.value;
+        if (selectedDate) {
+            window.location.href = '{{ url_for('book') }}?date=' + selectedDate;
+        }
+    });
+</script>
+{% endblock %}

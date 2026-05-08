@@ -1,0 +1,91 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}Room Booking Dashboard - NTTF Management{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header">
+        <h1 class="page-title"><i class="bi bi-calendar-check me-2"></i>Room Booking Dashboard</h1>
+        <p class="page-subtitle">Manage classroom and meeting room reservations.</p>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                {% for message in messages %}
+                    {{ message }}
+                {% endfor %}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="booking-grid">
+        <form method="GET" class="mb-4">
+            <div class="row align-items-end">
+                <div class="col-md-4">
+                    <label for="date" class="form-label fw-semibold">Select Date</label>
+                    <input type="date" id="date" name="date" value="{{ date }}" class="form-control" min="{{ today }}" onchange="this.form.submit()">
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-2">
+                        <strong>Selected Day:</strong> <span class="text-primary">{{ selected_day }}</span>
+                    </div>
+                </div>
+                <div class="col-md-4 text-end">
+                    <a href="{{ url_for('book') }}" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> New Booking
+                    </a>
+                </div>
+            </div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Room</th>
+                        {% for ts in timeslots %}
+                        <th class="text-center">{{ ts.period }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for room in rooms %}
+                    <tr>
+                        <td class="fw-semibold">
+                            <i class="bi bi-building me-2"></i>{{ room.name }}
+                            <br><small class="text-muted">{{ room.type|title }}</small>
+                        </td>
+                        {% for ts in timeslots %}
+                        <td class="text-center">
+                            {% if grid[room.id][ts.id]['status'] == 'available' %}
+                                <a href="{{ url_for('book', date=date, room_id=room.id, timeslot_id=ts.id) }}" class="btn btn-book btn-sm">
+                                    <i class="bi bi-check-circle"></i> Book
+                                </a>
+                            {% elif grid[room.id][ts.id]['status'] == 'busy' %}
+                                <div class="status-busy rounded p-2">
+                                    <i class="bi bi-person-fill"></i>
+                                    <br><small>{{ grid[room.id][ts.id]['staff'] }}</small>
+                                    {% if user.role == 'admin' or grid[room.id][ts.id]['user_id'] == user.user_id %}
+                                    <br><a href="{{ url_for('cancel', booking_id=grid[room.id][ts.id]['booking_id']) }}" class="btn btn-cancel btn-sm">
+                                        <i class="bi bi-x-circle"></i> Cancel
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <div class="status-unavailable rounded p-2">
+                                    <i class="bi bi-dash-circle"></i>
+                                    <br><small>Unavailable</small>
+                                </div>
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

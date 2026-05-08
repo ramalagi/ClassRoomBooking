@@ -1,0 +1,37 @@
+﻿{% extends 'base.html' %}
+
+{% block title %}Attendance History - NTTF Management{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header">
+        <h1 class="page-title"><i class="bi bi-clock-history me-2"></i>Attendance History</h1>
+        <p class="page-subtitle">Review your attendance records and classroom sessions.</p>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Session</th>
+                    <th>Status</th>
+                    <th>Marked By</th>
+                    <th>Marked At</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in history %}
+                <tr>
+                    <td>{{ record[3].strftime('%Y-%m-%d') }}</td>
+                    <td>{% if record[4] %}Session {{ record[4] }}{% else %}Daily{% endif %}</td>
+                    <td class="status-{{ record[5] }}">{{ record[5].title() }}</td>
+                    <td>{{ record[6] }}</td>
+                    <td>{{ record[7].strftime('%Y-%m-%d %H:%M') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

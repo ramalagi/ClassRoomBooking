@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block title %}Home - NTTF Management{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="section-head">
+        <span class="eyebrow text-uppercase text-secondary fw-semibold">Welcome back</span>
+        <h2>NTTF Management Portal</h2>
+        <p>Choose a module below to manage room bookings or attendance. Your branded dashboard starts here.</p>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                {% for message in messages %}
+                    {{ message }}
+                {% endfor %}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="row gx-4 gy-4 feature-grid">
+        <div class="col-md-6">
+            <a href="{{ url_for('booking_dashboard') }}" class="feature-card h-100">
+                <div class="feature-icon">
+                    <i class="bi bi-calendar-check"></i>
+                </div>
+                <h3 class="feature-title">Room Booking</h3>
+                <p class="feature-description">Manage classroom reservations, view schedules, and create bookings in one place.</p>
+            </a>
+        </div>
+        <div class="col-md-6">
+            <a href="{{ attendance_url }}" class="feature-card h-100">
+                <div class="feature-icon">
+                    <i class="bi bi-clipboard-check"></i>
+                </div>
+                <h3 class="feature-title">{{ attendance_title }}</h3>
+                <p class="feature-description">Track attendance, mark student presence, and access detailed reports.</p>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

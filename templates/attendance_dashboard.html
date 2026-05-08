@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block title %}Attendance Dashboard - NTTF Management{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header">
+        <h1 class="page-title"><i class="bi bi-clipboard-check me-2"></i>Attendance Dashboard</h1>
+        <p class="page-subtitle">Manage attendance for your assigned batches.</p>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-info">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="row">
+        {% for batch in batches %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <h5 class="card-title">{{ batch.name }}</h5>
+                    <p class="card-text">Manage attendance for this batch.</p>
+                    <a href="{{ url_for('mark_attendance', batch_id=batch.id) }}" class="btn btn-primary">
+                        <i class="bi bi-pencil-square"></i> Mark Attendance
+                    </a>
+                    <a href="{{ url_for('attendance_reports', batch_id=batch.id) }}" class="btn btn-secondary">
+                        <i class="bi bi-graph-up"></i> Reports
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="mt-5">
+        <h3>Quick Actions</h3>
+        <div class="row">
+            <div class="col-md-3">
+                <a href="{{ url_for('attendance_reports') }}" class="btn btn-outline-primary btn-lg w-100">
+                    <i class="bi bi-bar-chart"></i> View Reports
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

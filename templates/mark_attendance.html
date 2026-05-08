@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+
+{% block title %}Mark Attendance - NTTF Management{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header">
+        <h1 class="page-title"><i class="bi bi-pencil-square me-2"></i>Mark Attendance</h1>
+        <p class="page-subtitle">Record attendance for the selected batch and session.</p>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-info">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="GET" class="mb-3">
+        <div class="row gy-3">
+            <div class="col-md-4">
+                <label for="date" class="form-label">Date:</label>
+                <input type="date" id="date" name="date" value="{{ date }}" class="form-control" onchange="this.form.submit()">
+            </div>
+            <div class="col-md-4">
+                <label for="session" class="form-label">Session (Optional):</label>
+                <select id="session" name="session" class="form-select" onchange="this.form.submit()">
+                    <option value="">Daily</option>
+                    {% for ts in timeslots %}
+                    <option value="{{ ts.id }}" {% if session_id == ts.id %}selected{% endif %}>{{ ts.period }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </form>
+
+    <form method="POST">
+        <div class="mb-3">
+            <button type="submit" name="action" value="mark_all_present" class="btn btn-success me-2">
+                <i class="bi bi-check-circle"></i> Mark All Present
+            </button>
+            <button type="submit" name="action" value="mark_all_absent" class="btn btn-danger me-2">
+                <i class="bi bi-x-circle"></i> Mark All Absent
+            </button>
+            <button type="submit" name="action" value="copy_previous" class="btn btn-warning">
+                <i class="bi bi-arrow-repeat"></i> Copy Previous Day
+            </button>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-bordered">
+                <thead class="sticky-header">
+                    <tr>
+                        <th>Student</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student in students %}
+                    <tr>
+                        <td>{{ student.name }}</td>
+                        <td>
+                            <select name="status_{{ student.id }}" class="form-select status-select" data-student-id="{{ student.id }}">
+                                <option value="present" {% if attendance.get(student.id) == 'present' %}selected{% endif %}>Present</option>
+                                <option value="absent" {% if attendance.get(student.id) == 'absent' %}selected{% endif %}>Absent</option>
+                                <option value="late" {% if attendance.get(student.id) == 'late' %}selected{% endif %}>Late</option>
+                                <option value="leave" {% if attendance.get(student.id) == 'leave' %}selected{% endif %}>Leave</option>
+                            </select>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg">
+            <i class="bi bi-save"></i> Save Attendance
+        </button>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.querySelectorAll('.status-select').forEach(select => {
+        select.addEventListener('change', function() {
+            const row = this.closest('tr');
+            row.className = '';
+            if (this.value === 'present') row.classList.add('status-present');
+            else if (this.value === 'absent') row.classList.add('status-absent');
+            else if (this.value === 'late') row.classList.add('status-late');
+            else if (this.value === 'leave') row.classList.add('status-leave');
+        });
+        select.dispatchEvent(new Event('change'));
+    });
+</script>
+{% endblock %}
