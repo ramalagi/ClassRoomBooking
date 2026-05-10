@@ -1,6 +1,6 @@
-setuptools
-wheel
-gunicorn
 Flask==2.3.3
-pandas==2.2.2
+gunicorn==23.0.0
+pandas==2.2.3
 openpyxl==3.1.2
+setuptools>=70.0.0
+wheel>=0.43.0

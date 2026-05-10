@@ -4,8 +4,16 @@ from datetime import datetime, timedelta
 
 import os
 
-app = Flask(__name__)
-app.secret_key = os.getenv('FLASK_SECRET_KEY', 'please_change_this_secret')
+app = Flask(
+    __name__,
+    static_folder="static",
+    template_folder="templates"
+)
+
+app.secret_key = os.getenv(
+    "FLASK_SECRET_KEY",
+    "please_change_this_secret"
+)
 
 def login_required(f):
     def wrapper(*args, **kwargs):

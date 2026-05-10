@@ -299,9 +299,17 @@ a:hover, a:focus {
 
 .login-page {
     min-height: 100vh;
-    background-image: linear-gradient(180deg, rgba(4, 20, 56, 0.6), rgba(11, 39, 98, 0.5)), url('/static/login-bg.svg');
+    background-image:
+        linear-gradient(
+            180deg,
+            rgba(4, 20, 56, 0.6),
+            rgba(11, 39, 98, 0.5)
+        ),
+        url("../login-bg.jpeg");
+
     background-size: cover;
     background-position: center;
+    background-repeat: no-repeat;
     display: flex;
     align-items: center;
 }
