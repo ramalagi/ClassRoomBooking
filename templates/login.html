@@ -1,38 +1,90 @@
 {% extends 'base.html' %}
 
-{% block title %}Login - NTTF Management{% endblock %}
+{% block title %}NTTF Classroom Booking{% endblock %}
 {% block body_class %}login-page{% endblock %}
 
 {% block content %}
-<div class="login-page__wrapper">
-    <div class="login-card">
-        <img src="{{ url_for('static', filename='nttf-logo.jpeg') }}"
-     alt="NTTF Logo"
-     class="login-logo">
-        <h1 class="login-heading">Welcome back to NTTF</h1>
-        <p class="login-subtitle">Sign in to access room booking, attendance tracking, and administrative tools.</p>
+<div class="login-shell">
 
-        {% with messages = get_flashed_messages() %}
-            {% if messages %}
-                {% for message in messages %}
-                    <div class="alert alert-danger">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+    <div class="login-brand-panel">
+        <div class="brand-overlay">
+            <!-- <img src="{{ url_for('static', filename='nttf-logo.jpeg') }}"
+                 class="brand-main-logo"
+                 alt="NTTF Logo"> -->
 
-        <form method="POST" class="login-form">
-            <div class="mb-3">
-                <label for="username" class="form-label">Username</label>
-                <input type="text" id="username" name="username" class="form-control" required>
+            <h1 class="hero-title">
+                NTTF Classroom Booking System
+            </h1>
+
+            <p class="hero-subtitle">
+                Smart classroom booking, attendance tracking,
+                and academic space management for NTTF campuses.
+            </p>
+
+            <div class="hero-badges">
+                <span>Classroom Booking</span>
+                <span>Attendance</span>
+                <span>Administration</span>
             </div>
-            <div class="mb-3">
-                <label for="password" class="form-label">Password</label>
-                <input type="password" id="password" name="password" class="form-control" required>
-            </div>
-            <button type="submit" class="btn btn-primary w-100">Login</button>
-        </form>
-
-        <p class="text-muted small mt-4">Use your NTTF credentials to securely access the portal.</p>
+        </div>
     </div>
+
+    <div class="login-panel">
+        <div class="login-card premium-card">
+
+            <div class="text-center mb-4">
+                <img src="{{ url_for('static', filename='nttf-logo.jpeg') }}"
+                     class="login-logo"
+                     alt="NTTF Logo">
+
+                <h2 class="login-title mt-3">
+                    Welcome Back
+                </h2>
+
+                <p class="login-subtitle">
+                    Sign in with your NTTF credentials
+                </p>
+            </div>
+
+            {% with messages = get_flashed_messages() %}
+                {% if messages %}
+                    {% for message in messages %}
+                    <div class="alert alert-danger">
+                        {{ message }}
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST">
+
+                <div class="form-group-modern mb-4">
+                    <label>Username</label>
+                    <input type="text"
+                           name="username"
+                           class="form-control modern-input"
+                           placeholder="Enter username"
+                           required>
+                </div>
+
+                <div class="form-group-modern mb-4">
+                    <label>Password</label>
+                    <input type="password"
+                           name="password"
+                           class="form-control modern-input"
+                           placeholder="Enter password"
+                           required>
+                </div>
+
+                <button type="submit"
+                        class="btn login-btn w-100">
+                    Login to Dashboard
+                </button>
+
+            </form>
+
+        </div>
+    </div>
+
 </div>
 {% endblock %}

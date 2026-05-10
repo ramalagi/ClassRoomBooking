@@ -1,45 +1,70 @@
 {% extends 'base.html' %}
 
-{% block title %}Home - NTTF Management{% endblock %}
+{% block title %}
+Home - NTTF Classroom Booking
+{% endblock %}
 
 {% block content %}
-<div class="container">
-    <div class="section-head">
-        <span class="eyebrow text-uppercase text-secondary fw-semibold">Welcome back</span>
-        <h2>NTTF Management Portal</h2>
-        <p>Choose a module below to manage room bookings or attendance. Your branded dashboard starts here.</p>
+
+<div class="container py-5">
+
+    <div class="hero-section">
+
+        <span class="eyebrow">
+            Welcome Back
+        </span>
+
+        <h1>
+            NTTF Classroom Booking Portal
+        </h1>
+
+        <p>
+            Manage classroom bookings and attendance
+            from one centralized smart dashboard.
+        </p>
+
     </div>
 
-    {% with messages = get_flashed_messages() %}
-        {% if messages %}
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                {% for message in messages %}
-                    {{ message }}
-                {% endfor %}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    <div class="dashboard-cards">
+
+        <a href="{{ url_for('booking_dashboard') }}"
+           class="dashboard-card">
+
+            <div class="card-icon">
+                <i class="bi bi-calendar-check"></i>
             </div>
-        {% endif %}
-    {% endwith %}
 
-    <div class="row gx-4 gy-4 feature-grid">
-        <div class="col-md-6">
-            <a href="{{ url_for('booking_dashboard') }}" class="feature-card h-100">
-                <div class="feature-icon">
-                    <i class="bi bi-calendar-check"></i>
-                </div>
-                <h3 class="feature-title">Room Booking</h3>
-                <p class="feature-description">Manage classroom reservations, view schedules, and create bookings in one place.</p>
-            </a>
-        </div>
-        <div class="col-md-6">
-            <a href="{{ attendance_url }}" class="feature-card h-100">
-                <div class="feature-icon">
-                    <i class="bi bi-clipboard-check"></i>
-                </div>
-                <h3 class="feature-title">{{ attendance_title }}</h3>
-                <p class="feature-description">Track attendance, mark student presence, and access detailed reports.</p>
-            </a>
-        </div>
+            <h2>
+                Room Booking
+            </h2>
+
+            <p>
+                Reserve classrooms, manage schedules,
+                and monitor room availability.
+            </p>
+
+        </a>
+
+        <a href="{{ attendance_url }}"
+           class="dashboard-card">
+
+            <div class="card-icon">
+                <i class="bi bi-person-check"></i>
+            </div>
+
+            <h2>
+                Attendance Management
+            </h2>
+
+            <p>
+                Track student attendance and
+                generate academic reports.
+            </p>
+
+        </a>
+
     </div>
+
 </div>
+
 {% endblock %}
