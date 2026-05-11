@@ -879,14 +879,163 @@ tr.status-leave   { background: rgba(100, 116, 139, 0.06) !important; }
    RESPONSIVE
    ============================================================ */
 
+/* Tablet + small laptop */
+@media (max-width: 992px) {
+    .container, .container-fluid { padding-left: 16px; padding-right: 16px; }
+    .nav-link::after { left: 10px; right: 10px; }
+    .navbar-collapse {
+        background: rgba(15, 60, 110, 0.95);
+        margin-top: 12px;
+        padding: 16px;
+        border-radius: var(--r-md);
+        backdrop-filter: blur(12px);
+    }
+    .navbar-collapse .navbar-nav { gap: 6px !important; }
+    .navbar-collapse .nav-item { width: 100%; }
+    .navbar-collapse .nav-link { width: 100%; padding: 12px 14px !important; }
+    .navbar-collapse .nav-item.ms-3 { margin-left: 0 !important; margin-top: 8px; }
+    .navbar-collapse .btn-warning { width: 100%; justify-content: center; }
+    .navbar-toggler {
+        border: 1.5px solid rgba(255, 255, 255, 0.3) !important;
+        padding: 6px 10px;
+    }
+    .navbar-toggler:focus { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2) !important; }
+}
+
+/* Tablet portrait + phones */
 @media (max-width: 768px) {
+    /* Prevent decorative orbs from causing horizontal scroll on small screens */
+    html, body { overflow-x: hidden; }
+    body::before, body::after { opacity: 0.25; }
+
     .page-wrapper { padding: 16px 0 40px; }
-    .page-header { padding: 20px; }
-    .page-title { font-size: 1.4rem; }
-    .hero-section { padding: 32px 24px; }
-    .hero-section h1 { font-size: 1.9rem; }
+
+    /* Page header */
+    .page-header { padding: 18px 18px; margin-bottom: 20px; }
+    .page-header::before { width: 140px; height: 140px; top: -40px; right: -40px; }
+    .page-title { font-size: 1.35rem; line-height: 1.25; }
+    .page-subtitle { font-size: 0.88rem; }
+
+    /* Hero */
+    .hero-section { padding: 30px 22px; margin-bottom: 32px; }
+    .hero-section h1 { font-size: 1.75rem; }
+    .hero-section p { font-size: 0.98rem; }
+    .hero-section::before, .hero-section::after { display: none; }
+
+    .eyebrow { font-size: 0.7rem; padding: 5px 12px; }
+
+    /* Navbar */
     .brand-title { font-size: 1rem; }
     .brand-subtitle { display: none; }
-    .brand-logo { height: 44px; }
-    .login-card { padding: 32px 24px; }
+    .brand-logo { height: 44px; padding: 4px 8px; }
+
+    /* Dashboard cards */
+    .dashboard-cards { gap: 18px; }
+    .dashboard-card { padding: 28px 22px; border-radius: var(--r-lg); }
+    .dashboard-card:active { transform: scale(0.98); }
+    .card-icon { width: 62px; height: 62px; font-size: 1.8rem; border-radius: 18px; margin-bottom: 16px; }
+    .dashboard-card h2 { font-size: 1.2rem; }
+    .dashboard-card p { font-size: 0.92rem; }
+
+    /* Booking grid + any table: horizontal scroll w/ momentum + visible scrollbar */
+    .booking-grid { padding: 16px; }
+    .table-responsive {
+        position: relative;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+        scrollbar-color: var(--brand-blue) transparent;
+    }
+    .table-responsive::-webkit-scrollbar { height: 6px; }
+    .table-responsive::-webkit-scrollbar-thumb {
+        background: var(--brand-blue);
+        border-radius: 3px;
+    }
+    .table { font-size: 0.84rem; }
+    .table thead th { padding: 10px 8px !important; font-size: 0.7rem; letter-spacing: 0.4px; }
+    .table tbody td { padding: 10px 8px !important; }
+
+    /* Sticky first column on wide tables so users keep context while scrolling */
+    .booking-grid .table th:first-child,
+    .booking-grid .table td:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        min-width: 110px;
+        box-shadow: 4px 0 8px -4px rgba(0, 0, 0, 0.12);
+    }
+    .booking-grid .table tbody td:first-child { background: var(--surface) !important; }
+    .booking-grid .table tbody tr:nth-of-type(even) td:first-child { background: var(--surface-2) !important; }
+    .booking-grid .table thead th:first-child {
+        background: var(--brand-blue-dark) !important;
+        z-index: 3;
+    }
+
+    /* Booking cell shrink */
+    .status-busy, .status-unavailable { padding: 8px 6px !important; font-size: 0.78rem; }
+    .status-busy small, .status-unavailable small { font-size: 0.7rem; }
+    .btn-book { padding: 4px 8px !important; font-size: 0.72rem !important; }
+    .btn-cancel { padding: 3px 7px !important; font-size: 0.66rem !important; }
+
+    /* Touch-friendly buttons */
+    .btn { min-height: 42px; padding: 10px 18px; }
+
+    /* Cards & charts */
+    .card .card-body { padding: 18px; }
+    .chart-container { height: 220px; }
+
+    /* Forms */
+    .form-control, .form-select, .modern-input { padding: 11px 14px !important; font-size: 0.96rem; }
+    .form-label { font-size: 0.84rem; }
+
+    /* Booking dashboard filter row: full-width buttons */
+    .booking-grid form .col-md-4.text-end { text-align: left !important; }
+    .booking-grid form .col-md-4.text-end .btn { width: 100%; }
+
+    /* Login */
+    .login-card, .premium-card { padding: 32px 26px; max-width: 100%; }
+    .login-title { font-size: 1.45rem; }
+    .login-logo { width: 76px; }
+    .hero-title { font-size: 2rem; }
+    .hero-subtitle { font-size: 0.98rem; }
+}
+
+/* Phone */
+@media (max-width: 480px) {
+    .page-wrapper { padding: 12px 0 32px; }
+
+    .page-header { padding: 16px 14px; border-radius: var(--r-md); }
+    .page-title { font-size: 1.15rem; }
+    .page-title .bi { font-size: 1.05rem; }
+    .page-subtitle { font-size: 0.82rem; }
+
+    .hero-section { padding: 24px 18px; border-radius: var(--r-lg); }
+    .hero-section h1 { font-size: 1.45rem; }
+    .hero-section p { font-size: 0.9rem; }
+
+    .brand-title { font-size: 0.9rem; }
+    .brand-logo { height: 38px; padding: 3px 6px; border-radius: 10px; }
+    .app-header .navbar { padding: 0.6rem 0 !important; }
+
+    .dashboard-card { padding: 24px 18px; }
+    .dashboard-card h2 { font-size: 1.1rem; }
+    .card-icon { width: 54px; height: 54px; font-size: 1.5rem; }
+
+    .booking-grid { padding: 12px; border-radius: var(--r-md); }
+    .table thead th { font-size: 0.62rem; padding: 8px 6px !important; }
+    .table tbody td { padding: 8px 6px !important; }
+    .table { font-size: 0.78rem; }
+
+    .login-card, .premium-card { padding: 26px 20px; border-radius: var(--r-lg); }
+    .login-title { font-size: 1.3rem; }
+
+    .btn-warning { padding: 8px 14px !important; font-size: 0.84rem; }
+
+    /* Reports/admin tables stay readable: stack the action cell */
+    .table-responsive table .btn { min-height: 36px; padding: 6px 12px; }
+}
+
+/* Very narrow phones — hide non-essential nav text */
+@media (max-width: 360px) {
+    .brand-title { font-size: 0.82rem; }
+    .hero-section h1 { font-size: 1.3rem; }
 }
