@@ -15,6 +15,23 @@ app.secret_key = os.getenv(
     "please_change_this_secret"
 )
 
+@app.context_processor
+def inject_nav_helpers():
+    """Compute the right attendance link for the current user once per request."""
+    role = session.get('role')
+    user_id = session.get('user_id')
+    if not user_id:
+        return {}
+    if role in ('admin', 'faculty'):
+        return {'nav_attendance_url': url_for('attendance_dashboard')}
+    if role == 'student':
+        from models import get_students
+        match = next((s for s in get_students() if s.user_id == user_id), None)
+        if match:
+            return {'nav_attendance_url': url_for('attendance_history', student_id=match.id)}
+    return {'nav_attendance_url': url_for('dashboard')}
+
+
 def login_required(f):
     def wrapper(*args, **kwargs):
         if 'user_id' not in session:
@@ -137,9 +154,10 @@ def booking_dashboard():
     
     for booking in bookings:
         booking_id, username, room_name, room_type, day, period, b_date, user_id = booking
-        # Find room_id and timeslot_id
-        room_id = next(r.id for r in rooms if r.name == room_name)
-        timeslot_id = next(ts.id for ts in timeslots if ts.day == day and ts.period == period)
+        room_id = next((r.id for r in rooms if r.name == room_name), None)
+        timeslot_id = next((ts.id for ts in timeslots if ts.day == day and ts.period == period), None)
+        if room_id is None or timeslot_id is None or room_id not in grid or timeslot_id not in grid[room_id]:
+            continue
         grid[room_id][timeslot_id] = {'status': 'busy', 'staff': username, 'booking_id': booking_id, 'user_id': user_id}
     
     today = datetime.now().date()
@@ -159,35 +177,39 @@ def booking_dashboard():
 def book():
     if request.method == 'POST':
         user_id = session['user_id']
-        room_id = int(request.form['room_id'])
-        timeslot_id = int(request.form['timeslot_id'])
-        date_str = request.form['date']
-        date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        
-        # Get the timeslot details
-        timeslots = get_timeslots()
-        timeslot = next(ts for ts in timeslots if ts.id == timeslot_id)
-        period = timeslot.period  # e.g., '9:00-10:00'
-        start_hour = int(period.split('-')[0].split(':')[0])
-        
+        try:
+            room_id = int(request.form['room_id'])
+            timeslot_id = int(request.form['timeslot_id'])
+            date_str = request.form['date']
+            date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except (KeyError, ValueError):
+            flash('Invalid booking request.')
+            return redirect(url_for('booking_dashboard'))
+
+        timeslot = next((ts for ts in get_timeslots() if ts.id == timeslot_id), None)
+        if timeslot is None:
+            flash('Selected time slot does not exist.')
+            return redirect(url_for('booking_dashboard', date=date_str))
+
+        start_hour = int(timeslot.period.split('-')[0].split(':')[0])
         now = datetime.now()
         today = now.date()
-        
-        # Check if date is in the past
-        if date < today:
-            return "Cannot book for past dates."
-        
-        # If today, check if the period has already started
-        if date == today and now.hour >= start_hour:
-            return "Cannot book for past or current time slots."
 
+        if date < today:
+            flash('Cannot book for past dates.')
+            return redirect(url_for('booking_dashboard', date=date_str))
+        if date == today and now.hour >= start_hour:
+            flash('Cannot book for past or current time slots.')
+            return redirect(url_for('booking_dashboard', date=date_str))
         if timeslot.day != date.strftime('%A'):
-            return f"Selected timeslot day ({timeslot.day}) does not match the chosen date ({date.strftime('%A')})."
-        
+            flash(f'Selected timeslot day ({timeslot.day}) does not match the chosen date ({date.strftime("%A")}).')
+            return redirect(url_for('booking_dashboard', date=date_str))
+
         if make_booking(user_id, room_id, timeslot_id, date):
-            return redirect(url_for('dashboard', date=date_str))
-        else:
-            return "Booking failed: Room already booked for that time."
+            flash('Booking confirmed.')
+            return redirect(url_for('booking_dashboard', date=date_str))
+        flash('Booking failed: room already booked for that time.')
+        return redirect(url_for('booking_dashboard', date=date_str))
     
     rooms = get_rooms()
     timeslots = get_timeslots()
@@ -216,7 +238,7 @@ def cancel(booking_id):
         flash('Booking cancelled')
     else:
         flash('Cannot cancel this booking')
-    return redirect(url_for('dashboard'))
+    return redirect(request.referrer or url_for('booking_dashboard'))
 
 @app.route('/admin', methods=['GET', 'POST'])
 @admin_required
@@ -278,29 +300,34 @@ def mark_attendance(batch_id):
     students = get_students(batch_id)
     existing_attendance = get_attendance(batch_id, date, session_id)
     attendance_dict = {a.student_id: a.status for a in existing_attendance}
-    
+    batch = next((b for b in get_batches() if b.id == batch_id), None)
+
     if request.method == 'POST':
         action = request.form.get('action')
         if action == 'mark_all_present':
             bulk_mark_attendance(batch_id, date, session_id, 'present', session['user_id'])
+            flash('All students marked present.')
         elif action == 'mark_all_absent':
             bulk_mark_attendance(batch_id, date, session_id, 'absent', session['user_id'])
+            flash('All students marked absent.')
         elif action == 'copy_previous':
-            # Copy from previous day
             prev_date = date - timedelta(days=1)
             prev_attendance = get_attendance(batch_id, prev_date, session_id)
-            for a in prev_attendance:
-                save_attendance(a.student_id, batch_id, date, session_id, a.status, session['user_id'])
+            if not prev_attendance:
+                flash(f'No attendance found for {prev_date.strftime("%Y-%m-%d")} — nothing to copy.')
+            else:
+                for a in prev_attendance:
+                    save_attendance(a.student_id, batch_id, date, session_id, a.status, session['user_id'])
+                flash(f'Copied {len(prev_attendance)} records from {prev_date.strftime("%Y-%m-%d")}.')
         else:
-            # Individual marking
             for student in students:
                 status = request.form.get(f'status_{student.id}', 'absent')
                 save_attendance(student.id, batch_id, date, session_id, status, session['user_id'])
-        flash('Attendance marked successfully')
+            flash('Attendance saved.')
         return redirect(url_for('mark_attendance', batch_id=batch_id, date=date_str, session=session_id))
-    
+
     timeslots = get_timeslots()
-    return render_template('mark_attendance.html', students=students, attendance=attendance_dict, date=date_str, session_id=session_id, timeslots=timeslots, batch_id=batch_id, user=session)
+    return render_template('mark_attendance.html', students=students, attendance=attendance_dict, date=date_str, session_id=session_id, timeslots=timeslots, batch_id=batch_id, batch=batch, user=session)
 
 @app.route('/attendance/history/<int:student_id>')
 @student_required
@@ -327,7 +354,15 @@ def attendance_reports():
     
     summary = get_attendance_summary(batch_id, start_date, end_date)
     batches = get_batches()
-    return render_template('attendance_reports.html', summary=summary, batches=batches, user=session)
+    totals = {
+        'present': sum((row[1] or 0) for row in summary),
+        'absent':  sum((row[2] or 0) for row in summary),
+        'late':    sum((row[3] or 0) for row in summary),
+        'leave':   sum((row[4] or 0) for row in summary),
+    }
+    grand_total = sum(totals.values())
+    return render_template('attendance_reports.html', summary=summary, batches=batches,
+                           totals=totals, grand_total=grand_total, user=session)
 
 @app.route('/attendance/export/<format>')
 @faculty_required
@@ -367,13 +402,8 @@ def export_attendance(format):
     # For PDF, need fpdf
     # Implement later
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    import os
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-
     app.run(
         host="0.0.0.0",
         port=port,

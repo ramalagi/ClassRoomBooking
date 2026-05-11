@@ -8,18 +8,20 @@ Student = namedtuple('Student', ['id', 'user_id', 'name', 'email', 'batch_id'])
 Batch = namedtuple('Batch', ['id', 'name', 'faculty_id'])
 Attendance = namedtuple('Attendance', ['id', 'student_id', 'batch_id', 'date', 'session_id', 'status', 'marked_by'])
 
+
 def create_database():
     # PostgreSQL database creation is usually handled outside the app.
-    # When using local PostgreSQL, ensure the RoomBooking database exists.
+    # When using local PostgreSQL, ensure the roombooking database exists.
     return
+
 
 def create_tables():
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             role TEXT NOT NULL,
@@ -27,89 +29,91 @@ def create_tables():
             email TEXT
         )
     ''')
-    
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Rooms (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT NOT NULL,
             type TEXT NOT NULL
         )
     ''')
-    
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS TimeSlots (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             day TEXT NOT NULL,
             period TEXT NOT NULL
         )
     ''')
-    
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Bookings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            room_id INTEGER NOT NULL,
-            timeslot_id INTEGER NOT NULL,
-            date DATE NOT NULL,
-            FOREIGN KEY (user_id) REFERENCES Users(id),
-            FOREIGN KEY (room_id) REFERENCES Rooms(id),
-            FOREIGN KEY (timeslot_id) REFERENCES TimeSlots(id)
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES Users(id),
+            room_id INTEGER NOT NULL REFERENCES Rooms(id),
+            timeslot_id INTEGER NOT NULL REFERENCES TimeSlots(id),
+            date DATE NOT NULL
         )
     ''')
-    
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Batches (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             name TEXT NOT NULL,
-            faculty_id INTEGER,
-            FOREIGN KEY (faculty_id) REFERENCES Users(id)
+            faculty_id INTEGER REFERENCES Users(id)
         )
     ''')
-    
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Students (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER UNIQUE,
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER UNIQUE REFERENCES Users(id),
             name TEXT NOT NULL,
             email TEXT,
-            batch_id INTEGER,
-            FOREIGN KEY (user_id) REFERENCES Users(id),
-            FOREIGN KEY (batch_id) REFERENCES Batches(id)
+            batch_id INTEGER REFERENCES Batches(id)
         )
     ''')
-    
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Attendance (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            student_id INTEGER NOT NULL,
-            batch_id INTEGER NOT NULL,
+            id SERIAL PRIMARY KEY,
+            student_id INTEGER NOT NULL REFERENCES Students(id),
+            batch_id INTEGER NOT NULL REFERENCES Batches(id),
             date DATE NOT NULL,
-            session_id INTEGER,  -- Optional, links to TimeSlots
-            status TEXT NOT NULL,  -- present, absent, late, leave
-            marked_by INTEGER NOT NULL,
-            marked_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (student_id) REFERENCES Students(id),
-            FOREIGN KEY (batch_id) REFERENCES Batches(id),
-            FOREIGN KEY (session_id) REFERENCES TimeSlots(id),
-            FOREIGN KEY (marked_by) REFERENCES Users(id)
+            session_id INTEGER REFERENCES TimeSlots(id),
+            status TEXT NOT NULL,
+            marked_by INTEGER NOT NULL REFERENCES Users(id),
+            marked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
-    
+
+    # Unique index for upserts on attendance (treats NULL session_id as a single bucket)
+    cursor.execute('''
+        CREATE UNIQUE INDEX IF NOT EXISTS attendance_unique_session
+        ON Attendance (student_id, batch_id, date, session_id)
+        WHERE session_id IS NOT NULL
+    ''')
+    cursor.execute('''
+        CREATE UNIQUE INDEX IF NOT EXISTS attendance_unique_no_session
+        ON Attendance (student_id, batch_id, date)
+        WHERE session_id IS NULL
+    ''')
+
     conn.commit()
     cursor.close()
     conn.close()
 
+
 def insert_sample_data():
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("SELECT COUNT(*) FROM Users")
     if cursor.fetchone()[0] > 0:
         cursor.close()
         conn.close()
         return
 
-    # Insert sample users
     users = [
         ('admin', 'admin123', 'admin', 'Admin User', 'admin@nttf.com'),
         ('faculty1', 'faculty123', 'faculty', 'Faculty One', 'faculty1@nttf.com'),
@@ -117,103 +121,131 @@ def insert_sample_data():
         ('student2', 'student123', 'student', 'Student Two', 'student2@nttf.com'),
         ('student3', 'student123', 'student', 'Student Three', 'student3@nttf.com')
     ]
-    cursor.executemany("INSERT INTO Users (username, password, role, name, email) VALUES (?, ?, ?, ?, ?)", users)
-    
-    # Insert sample rooms
+    cursor.executemany(
+        "INSERT INTO Users (username, password, role, name, email) VALUES (%s, %s, %s, %s, %s)",
+        users
+    )
+
     rooms = [
         ('Classroom 101', 'classroom'),
         ('Classroom 102', 'classroom'),
         ('Meeting Room A', 'meeting_room'),
         ('Meeting Room B', 'meeting_room')
     ]
-    cursor.executemany("INSERT INTO Rooms (name, type) VALUES (?, ?)", rooms)
-    
-    # Insert time slots for one week (assuming Monday to Friday, hourly periods from 9am to 5pm)
+    cursor.executemany("INSERT INTO Rooms (name, type) VALUES (%s, %s)", rooms)
+
     days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-    periods = ['9:00-10:00', '10:00-11:00', '11:00-12:00', '12:00-13:00', '13:00-14:00', '14:00-15:00', '15:00-16:00', '16:00-17:00']
-    
-    timeslots = []
-    for day in days:
-        for period in periods:
-            timeslots.append((day, period))
-    
-    cursor.executemany("INSERT INTO TimeSlots (day, period) VALUES (?, ?)", timeslots)
-    
-    # Insert sample batches
+    periods = ['9:00-10:00', '10:00-11:00', '11:00-12:00', '12:00-13:00',
+               '13:00-14:00', '14:00-15:00', '15:00-16:00', '16:00-17:00']
+    timeslots = [(day, period) for day in days for period in periods]
+    cursor.executemany("INSERT INTO TimeSlots (day, period) VALUES (%s, %s)", timeslots)
+
+    # Resolve faculty user id dynamically rather than hardcoding
+    cursor.execute("SELECT id FROM Users WHERE username = %s", ('faculty1',))
+    faculty_id = cursor.fetchone()[0]
+
     batches = [
-        ('Batch A', 2),  # faculty1 id=2
-        ('Batch B', 2)
+        ('Batch A', faculty_id),
+        ('Batch B', faculty_id)
     ]
-    cursor.executemany("INSERT INTO Batches (name, faculty_id) VALUES (?, ?)", batches)
-    
-    # Insert sample students
+    cursor.executemany("INSERT INTO Batches (name, faculty_id) VALUES (%s, %s) RETURNING id", batches)
+
+    cursor.execute("SELECT id, name FROM Batches ORDER BY id")
+    batch_rows = cursor.fetchall()
+    batch_a_id = batch_rows[0][0]
+    batch_b_id = batch_rows[1][0]
+
+    cursor.execute("SELECT id, username FROM Users WHERE username IN ('student1','student2','student3')")
+    student_users = {row[1]: row[0] for row in cursor.fetchall()}
+
     students = [
-        (3, 'Student One', 'student1@nttf.com', 1),  # user_id=3, batch=1
-        (4, 'Student Two', 'student2@nttf.com', 1),
-        (5, 'Student Three', 'student3@nttf.com', 2)
+        (student_users['student1'], 'Student One', 'student1@nttf.com', batch_a_id),
+        (student_users['student2'], 'Student Two', 'student2@nttf.com', batch_a_id),
+        (student_users['student3'], 'Student Three', 'student3@nttf.com', batch_b_id)
     ]
-    cursor.executemany("INSERT INTO Students (user_id, name, email, batch_id) VALUES (?, ?, ?, ?)", students)
-    
+    cursor.executemany(
+        "INSERT INTO Students (user_id, name, email, batch_id) VALUES (%s, %s, %s, %s)",
+        students
+    )
+
     conn.commit()
     cursor.close()
     conn.close()
 
+
 def get_rooms():
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, name, type FROM Rooms")
+    cursor.execute("SELECT id, name, type FROM Rooms ORDER BY id")
     rooms_data = cursor.fetchall()
     cursor.close()
     conn.close()
     return [Room(id=r[0], name=r[1], type=r[2]) for r in rooms_data]
 
+
 def get_timeslots():
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, day, period FROM TimeSlots")
+    cursor.execute("SELECT id, day, period FROM TimeSlots ORDER BY id")
     timeslots_data = cursor.fetchall()
     cursor.close()
     conn.close()
     return [TimeSlot(id=ts[0], day=ts[1], period=ts[2]) for ts in timeslots_data]
 
+
 def get_user(username, password):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, username, role, name, email FROM Users WHERE username = ? AND password = ?", (username, password))
+    cursor.execute(
+        "SELECT id, username, role, name, email FROM Users WHERE username = %s AND password = %s",
+        (username, password)
+    )
     user = cursor.fetchone()
     cursor.close()
     conn.close()
     return user
 
+
 def get_all_users():
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, username, role, name, email FROM Users")
+    cursor.execute("SELECT id, username, role, name, email FROM Users ORDER BY id")
     users = cursor.fetchall()
     cursor.close()
     conn.close()
     return users
 
+
 def add_user(username, password, role, name=None, email=None):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("INSERT INTO Users (username, password, role, name, email) VALUES (?, ?, ?, ?, ?)", (username, password, role, name, email))
+        cursor.execute(
+            "INSERT INTO Users (username, password, role, name, email) VALUES (%s, %s, %s, %s, %s)",
+            (username, password, role, name, email)
+        )
         conn.commit()
         success = True
-    except:
+    except Exception:
+        conn.rollback()
         success = False
     cursor.close()
     conn.close()
     return success
 
+
 def delete_user(user_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM Users WHERE id = ?", (user_id,))
-    conn.commit()
+    try:
+        cursor.execute("DELETE FROM Users WHERE id = %s", (user_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     cursor.close()
     conn.close()
+
 
 def get_bookings_for_date(date):
     conn = get_db_connection()
@@ -224,52 +256,62 @@ def get_bookings_for_date(date):
         JOIN Users u ON b.user_id = u.id
         JOIN Rooms r ON b.room_id = r.id
         JOIN TimeSlots t ON b.timeslot_id = t.id
-        WHERE b.date = ?
+        WHERE b.date = %s
     """, (date,))
     bookings = cursor.fetchall()
     cursor.close()
     conn.close()
     return bookings
 
+
 def check_availability(room_id, timeslot_id, date):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
         SELECT COUNT(*) FROM Bookings
-        WHERE room_id = ? AND timeslot_id = ? AND date = ?
+        WHERE room_id = %s AND timeslot_id = %s AND date = %s
     """, (room_id, timeslot_id, date))
     count = cursor.fetchone()[0]
     cursor.close()
     conn.close()
     return count == 0
 
+
 def make_booking(user_id, room_id, timeslot_id, date):
     if not check_availability(room_id, timeslot_id, date):
-        return False  # Already booked
-    
+        return False
+
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO Bookings (user_id, room_id, timeslot_id, date)
-        VALUES (?, ?, ?, ?)
-    """, (user_id, room_id, timeslot_id, date))
-    conn.commit()
+    try:
+        cursor.execute("""
+            INSERT INTO Bookings (user_id, room_id, timeslot_id, date)
+            VALUES (%s, %s, %s, %s)
+        """, (user_id, room_id, timeslot_id, date))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        cursor.close()
+        conn.close()
+        return False
     cursor.close()
     conn.close()
     return True
+
 
 def cancel_booking(booking_id, user_id, is_admin=False):
     conn = get_db_connection()
     cursor = conn.cursor()
     if is_admin:
-        cursor.execute("DELETE FROM Bookings WHERE id = ?", (booking_id,))
+        cursor.execute("DELETE FROM Bookings WHERE id = %s", (booking_id,))
     else:
-        cursor.execute("DELETE FROM Bookings WHERE id = ? AND user_id = ?", (booking_id, user_id))
+        cursor.execute("DELETE FROM Bookings WHERE id = %s AND user_id = %s", (booking_id, user_id))
     deleted = cursor.rowcount > 0
     conn.commit()
     cursor.close()
     conn.close()
     return deleted
+
 
 # Attendance functions
 def get_students(batch_id=None):
@@ -279,36 +321,35 @@ def get_students(batch_id=None):
         cursor.execute("""
             SELECT s.id, s.user_id, s.name, s.email, s.batch_id
             FROM Students s
-            WHERE s.batch_id = ?
+            WHERE s.batch_id = %s
+            ORDER BY s.id
         """, (batch_id,))
     else:
         cursor.execute("""
             SELECT s.id, s.user_id, s.name, s.email, s.batch_id
             FROM Students s
+            ORDER BY s.id
         """)
     students_data = cursor.fetchall()
     cursor.close()
     conn.close()
     return [Student(id=s[0], user_id=s[1], name=s[2], email=s[3], batch_id=s[4]) for s in students_data]
 
+
 def get_batches(faculty_id=None):
     conn = get_db_connection()
     cursor = conn.cursor()
     if faculty_id:
         cursor.execute("""
-            SELECT id, name, faculty_id
-            FROM Batches
-            WHERE faculty_id = ?
+            SELECT id, name, faculty_id FROM Batches WHERE faculty_id = %s ORDER BY id
         """, (faculty_id,))
     else:
-        cursor.execute("""
-            SELECT id, name, faculty_id
-            FROM Batches
-        """)
+        cursor.execute("SELECT id, name, faculty_id FROM Batches ORDER BY id")
     batches_data = cursor.fetchall()
     cursor.close()
     conn.close()
     return [Batch(id=b[0], name=b[1], faculty_id=b[2]) for b in batches_data]
+
 
 def get_attendance(batch_id, date, session_id=None):
     conn = get_db_connection()
@@ -317,77 +358,103 @@ def get_attendance(batch_id, date, session_id=None):
         cursor.execute("""
             SELECT a.id, a.student_id, a.batch_id, a.date, a.session_id, a.status, a.marked_by
             FROM Attendance a
-            WHERE a.batch_id = ? AND a.date = ? AND a.session_id = ?
+            WHERE a.batch_id = %s AND a.date = %s AND a.session_id = %s
         """, (batch_id, date, session_id))
     else:
         cursor.execute("""
             SELECT a.id, a.student_id, a.batch_id, a.date, a.session_id, a.status, a.marked_by
             FROM Attendance a
-            WHERE a.batch_id = ? AND a.date = ?
+            WHERE a.batch_id = %s AND a.date = %s AND a.session_id IS NULL
         """, (batch_id, date))
     attendance_data = cursor.fetchall()
     cursor.close()
     conn.close()
     return [Attendance(id=a[0], student_id=a[1], batch_id=a[2], date=a[3], session_id=a[4], status=a[5], marked_by=a[6]) for a in attendance_data]
 
+
 def mark_attendance(student_id, batch_id, date, session_id, status, marked_by):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-        INSERT OR REPLACE INTO Attendance (id, student_id, batch_id, date, session_id, status, marked_by, marked_at)
-        VALUES (
-            (SELECT id FROM Attendance WHERE student_id = ? AND batch_id = ? AND date = ? AND (session_id = ? OR (session_id IS NULL AND ? IS NULL))),
-            ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP
-        )
-    """, (student_id, batch_id, date, session_id, session_id, student_id, batch_id, date, session_id, status, marked_by))
-    conn.commit()
+    try:
+        if session_id is None:
+            cursor.execute("""
+                INSERT INTO Attendance (student_id, batch_id, date, session_id, status, marked_by, marked_at)
+                VALUES (%s, %s, %s, NULL, %s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (student_id, batch_id, date) WHERE session_id IS NULL
+                DO UPDATE SET status = EXCLUDED.status,
+                              marked_by = EXCLUDED.marked_by,
+                              marked_at = CURRENT_TIMESTAMP
+            """, (student_id, batch_id, date, status, marked_by))
+        else:
+            cursor.execute("""
+                INSERT INTO Attendance (student_id, batch_id, date, session_id, status, marked_by, marked_at)
+                VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                ON CONFLICT (student_id, batch_id, date, session_id) WHERE session_id IS NOT NULL
+                DO UPDATE SET status = EXCLUDED.status,
+                              marked_by = EXCLUDED.marked_by,
+                              marked_at = CURRENT_TIMESTAMP
+            """, (student_id, batch_id, date, session_id, status, marked_by))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     cursor.close()
     conn.close()
+
 
 def bulk_mark_attendance(batch_id, date, session_id, status, marked_by):
     students = get_students(batch_id)
     for student in students:
         mark_attendance(student.id, batch_id, date, session_id, status, marked_by)
 
+
 def get_student_attendance_history(student_id, start_date=None, end_date=None):
     conn = get_db_connection()
     cursor = conn.cursor()
     query = """
-        SELECT a.id, a.student_id, a.batch_id, a.date, a.session_id, a.status, a.marked_by, a.marked_at
+        SELECT a.id, a.student_id, a.batch_id, a.date, a.session_id, a.status,
+               u.username AS marked_by_name, a.marked_at, t.period
         FROM Attendance a
-        WHERE a.student_id = ?
+        LEFT JOIN Users u ON a.marked_by = u.id
+        LEFT JOIN TimeSlots t ON a.session_id = t.id
+        WHERE a.student_id = %s
     """
     params = [student_id]
     if start_date and end_date:
-        query += " AND a.date BETWEEN ? AND ?"
+        query += " AND a.date BETWEEN %s AND %s"
         params.extend([start_date, end_date])
     query += " ORDER BY a.date DESC, a.marked_at DESC"
     cursor.execute(query, params)
     attendance_data = cursor.fetchall()
     cursor.close()
     conn.close()
-    return attendance_data  # Return raw data for history
+    return attendance_data
+
 
 def get_attendance_summary(batch_id=None, start_date=None, end_date=None):
     conn = get_db_connection()
     cursor = conn.cursor()
     query = """
-        SELECT s.name, COALESCE(SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END), 0) as present,
-               COALESCE(SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END), 0) as absent,
-               COALESCE(SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END), 0) as late,
-               COALESCE(SUM(CASE WHEN a.status = 'leave' THEN 1 ELSE 0 END), 0) as leave,
-               COUNT(a.id) as total
+        SELECT s.name,
+               COALESCE(SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END), 0) AS present,
+               COALESCE(SUM(CASE WHEN a.status = 'absent' THEN 1 ELSE 0 END), 0) AS absent,
+               COALESCE(SUM(CASE WHEN a.status = 'late' THEN 1 ELSE 0 END), 0) AS late,
+               COALESCE(SUM(CASE WHEN a.status = 'leave' THEN 1 ELSE 0 END), 0) AS leave_count,
+               COUNT(a.id) AS total
         FROM Students s
         LEFT JOIN Attendance a ON s.id = a.student_id
     """
     params = []
+    conditions = []
     if batch_id:
-        query += " WHERE s.batch_id = ?"
+        conditions.append("s.batch_id = %s")
         params.append(batch_id)
     if start_date and end_date:
-        query += " AND a.date BETWEEN ? AND ?"
+        conditions.append("(a.date IS NULL OR a.date BETWEEN %s AND %s)")
         params.extend([start_date, end_date])
-    query += " GROUP BY s.id, s.name"
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+    query += " GROUP BY s.id, s.name ORDER BY s.name"
     cursor.execute(query, params)
     summary = cursor.fetchall()
     cursor.close()

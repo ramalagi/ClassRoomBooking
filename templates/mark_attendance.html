@@ -5,7 +5,10 @@
 {% block content %}
 <div class="container mt-4">
     <div class="page-header">
-        <h1 class="page-title"><i class="bi bi-pencil-square me-2"></i>Mark Attendance</h1>
+        <h1 class="page-title">
+            <i class="bi bi-pencil-square me-2"></i>Mark Attendance
+            {% if batch %}<small class="text-muted ms-2 fs-5">— {{ batch.name }}</small>{% endif %}
+        </h1>
         <p class="page-subtitle">Record attendance for the selected batch and session.</p>
     </div>
 

@@ -24,11 +24,15 @@
                 {% for record in history %}
                 <tr>
                     <td>{{ record[3].strftime('%Y-%m-%d') }}</td>
-                    <td>{% if record[4] %}Session {{ record[4] }}{% else %}Daily{% endif %}</td>
-                    <td class="status-{{ record[5] }}">{{ record[5].title() }}</td>
-                    <td>{{ record[6] }}</td>
-                    <td>{{ record[7].strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td>{% if record[8] %}{{ record[8] }}{% elif record[4] %}Session {{ record[4] }}{% else %}Daily{% endif %}</td>
+                    <td>
+                        <span class="badge status-badge status-{{ record[5] }}">{{ record[5]|title }}</span>
+                    </td>
+                    <td>{{ record[6] or '-' }}</td>
+                    <td>{% if record[7] %}{{ record[7].strftime('%Y-%m-%d %H:%M') }}{% else %}-{% endif %}</td>
                 </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-center text-muted py-4">No attendance records yet.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
