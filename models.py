@@ -99,73 +99,90 @@ def create_tables():
         WHERE session_id IS NULL
     ''')
 
+    # Idempotent schema migrations for tables that existed before these
+    # columns were introduced. ADD COLUMN IF NOT EXISTS is safe to re-run.
+    cursor.execute("ALTER TABLE Users ADD COLUMN IF NOT EXISTS name TEXT")
+    cursor.execute("ALTER TABLE Users ADD COLUMN IF NOT EXISTS email TEXT")
+
     conn.commit()
     cursor.close()
     conn.close()
 
 
+def _table_is_empty(cursor, table):
+    cursor.execute(f"SELECT COUNT(*) FROM {table}")
+    return cursor.fetchone()[0] == 0
+
+
 def insert_sample_data():
+    """Seed each table independently if it's empty. Safe to re-run."""
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT COUNT(*) FROM Users")
-    if cursor.fetchone()[0] > 0:
-        cursor.close()
-        conn.close()
-        return
+    if _table_is_empty(cursor, 'Users'):
+        users = [
+            ('admin', 'admin123', 'admin', 'Admin User', 'admin@nttf.com'),
+            ('faculty1', 'faculty123', 'faculty', 'Faculty One', 'faculty1@nttf.com'),
+            ('student1', 'student123', 'student', 'Student One', 'student1@nttf.com'),
+            ('student2', 'student123', 'student', 'Student Two', 'student2@nttf.com'),
+            ('student3', 'student123', 'student', 'Student Three', 'student3@nttf.com')
+        ]
+        cursor.executemany(
+            "INSERT INTO Users (username, password, role, name, email) VALUES (%s, %s, %s, %s, %s)",
+            users
+        )
 
-    users = [
-        ('admin', 'admin123', 'admin', 'Admin User', 'admin@nttf.com'),
-        ('faculty1', 'faculty123', 'faculty', 'Faculty One', 'faculty1@nttf.com'),
-        ('student1', 'student123', 'student', 'Student One', 'student1@nttf.com'),
-        ('student2', 'student123', 'student', 'Student Two', 'student2@nttf.com'),
-        ('student3', 'student123', 'student', 'Student Three', 'student3@nttf.com')
-    ]
-    cursor.executemany(
-        "INSERT INTO Users (username, password, role, name, email) VALUES (%s, %s, %s, %s, %s)",
-        users
-    )
+    if _table_is_empty(cursor, 'Rooms'):
+        rooms = [
+            ('Classroom 101', 'classroom'),
+            ('Classroom 102', 'classroom'),
+            ('Meeting Room A', 'meeting_room'),
+            ('Meeting Room B', 'meeting_room')
+        ]
+        cursor.executemany("INSERT INTO Rooms (name, type) VALUES (%s, %s)", rooms)
 
-    rooms = [
-        ('Classroom 101', 'classroom'),
-        ('Classroom 102', 'classroom'),
-        ('Meeting Room A', 'meeting_room'),
-        ('Meeting Room B', 'meeting_room')
-    ]
-    cursor.executemany("INSERT INTO Rooms (name, type) VALUES (%s, %s)", rooms)
+    if _table_is_empty(cursor, 'TimeSlots'):
+        days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+        periods = ['9:00-10:00', '10:00-11:00', '11:00-12:00', '12:00-13:00',
+                   '13:00-14:00', '14:00-15:00', '15:00-16:00', '16:00-17:00']
+        timeslots = [(day, period) for day in days for period in periods]
+        cursor.executemany("INSERT INTO TimeSlots (day, period) VALUES (%s, %s)", timeslots)
 
-    days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-    periods = ['9:00-10:00', '10:00-11:00', '11:00-12:00', '12:00-13:00',
-               '13:00-14:00', '14:00-15:00', '15:00-16:00', '16:00-17:00']
-    timeslots = [(day, period) for day in days for period in periods]
-    cursor.executemany("INSERT INTO TimeSlots (day, period) VALUES (%s, %s)", timeslots)
+    if _table_is_empty(cursor, 'Batches'):
+        cursor.execute("SELECT id FROM Users WHERE username = %s", ('faculty1',))
+        row = cursor.fetchone()
+        if row:
+            faculty_id = row[0]
+            cursor.executemany(
+                "INSERT INTO Batches (name, faculty_id) VALUES (%s, %s)",
+                [('Batch A', faculty_id), ('Batch B', faculty_id)]
+            )
 
-    # Resolve faculty user id dynamically rather than hardcoding
-    cursor.execute("SELECT id FROM Users WHERE username = %s", ('faculty1',))
-    faculty_id = cursor.fetchone()[0]
+    if _table_is_empty(cursor, 'Students'):
+        cursor.execute("SELECT id, name FROM Batches ORDER BY id")
+        batch_rows = cursor.fetchall()
+        cursor.execute(
+            "SELECT id, username FROM Users WHERE username IN ('student1','student2','student3')"
+        )
+        student_users = {row[1]: row[0] for row in cursor.fetchall()}
+        if batch_rows and len(student_users) == 3:
+            batch_a_id = batch_rows[0][0]
+            batch_b_id = batch_rows[1][0] if len(batch_rows) > 1 else batch_a_id
+            students = [
+                (student_users['student1'], 'Student One', 'student1@nttf.com', batch_a_id),
+                (student_users['student2'], 'Student Two', 'student2@nttf.com', batch_a_id),
+                (student_users['student3'], 'Student Three', 'student3@nttf.com', batch_b_id)
+            ]
+            cursor.executemany(
+                "INSERT INTO Students (user_id, name, email, batch_id) VALUES (%s, %s, %s, %s)",
+                students
+            )
 
-    batches = [
-        ('Batch A', faculty_id),
-        ('Batch B', faculty_id)
-    ]
-    cursor.executemany("INSERT INTO Batches (name, faculty_id) VALUES (%s, %s) RETURNING id", batches)
-
-    cursor.execute("SELECT id, name FROM Batches ORDER BY id")
-    batch_rows = cursor.fetchall()
-    batch_a_id = batch_rows[0][0]
-    batch_b_id = batch_rows[1][0]
-
-    cursor.execute("SELECT id, username FROM Users WHERE username IN ('student1','student2','student3')")
-    student_users = {row[1]: row[0] for row in cursor.fetchall()}
-
-    students = [
-        (student_users['student1'], 'Student One', 'student1@nttf.com', batch_a_id),
-        (student_users['student2'], 'Student Two', 'student2@nttf.com', batch_a_id),
-        (student_users['student3'], 'Student Three', 'student3@nttf.com', batch_b_id)
-    ]
-    cursor.executemany(
-        "INSERT INTO Students (user_id, name, email, batch_id) VALUES (%s, %s, %s, %s)",
-        students
+    # Backfill name/email for any pre-existing users seeded before those
+    # columns existed (so the login session doesn't carry None values).
+    cursor.execute(
+        "UPDATE Users SET name = %s, email = %s WHERE username = %s AND (name IS NULL OR email IS NULL)",
+        ('Admin User', 'admin@nttf.com', 'admin')
     )
 
     conn.commit()
