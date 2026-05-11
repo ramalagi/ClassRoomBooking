@@ -1,5 +1,15 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, flash, make_response
-from models import create_tables, insert_sample_data, get_rooms, get_timeslots, get_bookings_for_date, make_booking, get_user, get_all_users, add_user, delete_user, cancel_booking, get_students, get_batches, get_attendance, mark_attendance as save_attendance, bulk_mark_attendance, get_student_attendance_history, get_attendance_summary
+from models import (
+    create_tables, insert_sample_data, get_rooms, get_timeslots,
+    get_bookings_for_date, make_booking, get_user, get_all_users, add_user,
+    delete_user, cancel_booking, get_students, get_batches, get_attendance,
+    mark_attendance as save_attendance, bulk_mark_attendance,
+    get_student_attendance_history, get_attendance_summary,
+    get_courses, get_years_for_course, get_sections_for_course_year,
+    get_batch_by_course_year_section, add_batch, delete_batch,
+    add_student, delete_student, get_students_with_batch,
+    bulk_add_students, parse_students_xlsx,
+)
 from datetime import datetime, timedelta
 
 import os
@@ -262,6 +272,197 @@ def admin():
     users = get_all_users()
     return render_template('admin.html', users=users, user=session)
 
+
+# ---- Admin: Batches --------------------------------------------------------
+
+@app.route('/admin/batches', methods=['GET', 'POST'])
+@admin_required
+def admin_batches():
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'add':
+            course = (request.form.get('course') or '').strip()
+            year = request.form.get('year')
+            section = (request.form.get('section') or '').strip()
+            name = (request.form.get('name') or '').strip() or f"{course} - Year {year} - {section}"
+            try:
+                year_int = int(year)
+            except (TypeError, ValueError):
+                flash('Year must be 1, 2 or 3.')
+                return redirect(url_for('admin_batches'))
+            if not (course and year_int and section):
+                flash('Course, year and section are required.')
+                return redirect(url_for('admin_batches'))
+            try:
+                add_batch(name, course, year_int, section)
+                flash(f'Batch "{name}" added.')
+            except Exception as exc:
+                flash(f'Could not add batch: {exc}')
+        elif action == 'delete':
+            try:
+                batch_id = int(request.form['batch_id'])
+                delete_batch(batch_id)
+                flash('Batch deleted.')
+            except Exception as exc:
+                flash(f'Could not delete batch: {exc}')
+        return redirect(url_for('admin_batches'))
+    batches = get_batches()
+    return render_template('admin_batches.html', batches=batches, user=session)
+
+
+# ---- Admin: Students -------------------------------------------------------
+
+@app.route('/admin/students', methods=['GET'])
+@admin_required
+def admin_students():
+    students = get_students_with_batch()
+    batches = get_batches()
+    courses = sorted({b.course for b in batches if b.course})
+    return render_template('admin_students.html',
+                           students=students, batches=batches, courses=courses,
+                           user=session)
+
+
+@app.route('/admin/students/add', methods=['POST'])
+@admin_required
+def admin_add_student():
+    try:
+        name = (request.form.get('name') or '').strip()
+        student_code = (request.form.get('student_code') or '').strip()
+        email = (request.form.get('email') or '').strip() or None
+        course = (request.form.get('course') or '').strip()
+        section = (request.form.get('section') or '').strip()
+        parent_name = (request.form.get('parent_name') or '').strip() or None
+        phone = (request.form.get('phone') or '').strip() or None
+        year = int(request.form.get('year'))
+        if not (name and student_code and course and section and year):
+            flash('Student ID, name, course, year and section are required.')
+            return redirect(url_for('admin_students'))
+        add_student(name=name, email=email, student_code=student_code,
+                    course=course, year=year, section=section,
+                    parent_name=parent_name, phone=phone)
+        flash(f'Student "{name}" added.')
+    except Exception as exc:
+        flash(f'Could not add student: {exc}')
+    return redirect(url_for('admin_students'))
+
+
+@app.route('/admin/students/upload', methods=['POST'])
+@admin_required
+def admin_upload_students():
+    upload = request.files.get('file')
+    if not upload or not upload.filename:
+        flash('Please choose an Excel (.xlsx) file to upload.')
+        return redirect(url_for('admin_students'))
+    if not upload.filename.lower().endswith('.xlsx'):
+        flash('Only .xlsx files are supported.')
+        return redirect(url_for('admin_students'))
+    try:
+        records = parse_students_xlsx(upload.stream)
+    except ValueError as exc:
+        flash(f'Upload failed: {exc}')
+        return redirect(url_for('admin_students'))
+    except Exception as exc:
+        flash(f'Could not read the Excel file: {exc}')
+        return redirect(url_for('admin_students'))
+    added, skipped, errors = bulk_add_students(records)
+    summary = f'Added {added} student(s).'
+    if skipped:
+        summary += f' Skipped {skipped} duplicate code(s).'
+    if errors:
+        summary += f' {len(errors)} row(s) had errors: ' + '; '.join(errors[:5])
+        if len(errors) > 5:
+            summary += f' (+{len(errors) - 5} more)'
+    flash(summary)
+    return redirect(url_for('admin_students'))
+
+
+@app.route('/admin/students/<int:student_id>/delete', methods=['POST'])
+@admin_required
+def admin_delete_student(student_id):
+    try:
+        if delete_student(student_id):
+            flash('Student removed.')
+        else:
+            flash('Student not found.')
+    except Exception as exc:
+        flash(f'Could not delete student: {exc}')
+    return redirect(url_for('admin_students'))
+
+
+@app.route('/admin/students/sample.xlsx')
+@admin_required
+def admin_students_sample():
+    """Download a sample .xlsx with the expected columns and one example row."""
+    from openpyxl import Workbook
+    from io import BytesIO
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Students'
+    ws.append(['student_code', 'name', 'email', 'course', 'year', 'section',
+               'parent_name', 'phone'])
+    ws.append(['S101', 'Jane Doe', 'jane@nttf.com', 'Computer Science', 1, 'A',
+               'John Doe', '9876543210'])
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    response = make_response(buf.read())
+    response.headers['Content-Disposition'] = 'attachment; filename=students_sample.xlsx'
+    response.headers['Content-Type'] = (
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    return response
+
+
+# ---- Cascade API: Course -> Year -> Section -> Batch ----------------------
+
+def _faculty_filter():
+    """Return the faculty id to filter by, or None for admins."""
+    if session.get('role') == 'faculty':
+        return session.get('user_id')
+    return None
+
+
+@app.route('/api/courses')
+@login_required
+def api_courses():
+    return jsonify(get_courses(_faculty_filter()))
+
+
+@app.route('/api/years')
+@login_required
+def api_years():
+    course = request.args.get('course')
+    if not course:
+        return jsonify([])
+    return jsonify(get_years_for_course(course, _faculty_filter()))
+
+
+@app.route('/api/sections')
+@login_required
+def api_sections():
+    course = request.args.get('course')
+    year = request.args.get('year', type=int)
+    if not (course and year):
+        return jsonify([])
+    return jsonify(get_sections_for_course_year(course, year, _faculty_filter()))
+
+
+@app.route('/api/batch')
+@login_required
+def api_batch():
+    course = request.args.get('course')
+    year = request.args.get('year', type=int)
+    section = request.args.get('section')
+    if not (course and year and section):
+        return jsonify({'batch_id': None})
+    batch = get_batch_by_course_year_section(course, year, section, _faculty_filter())
+    return jsonify({
+        'batch_id': batch.id if batch else None,
+        'batch_name': batch.name if batch else None,
+    })
+
+
 @app.route('/api/availability')
 def api_availability():
     date_str = request.args.get('date')
@@ -285,8 +486,9 @@ def api_availability():
 @app.route('/attendance')
 @faculty_required
 def attendance_dashboard():
-    batches = get_batches(session.get('user_id') if session.get('role') == 'faculty' else None)
-    return render_template('attendance_dashboard.html', batches=batches, user=session)
+    faculty_id = _faculty_filter()
+    courses = get_courses(faculty_id)
+    return render_template('attendance_dashboard.html', courses=courses, user=session)
 
 @app.route('/attendance/mark/<int:batch_id>', methods=['GET', 'POST'])
 @faculty_required

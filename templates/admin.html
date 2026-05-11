@@ -6,7 +6,18 @@
 <div class="container mt-4">
     <div class="page-header">
         <h1 class="page-title"><i class="bi bi-gear me-2"></i>Admin Panel</h1>
-        <p class="page-subtitle">Manage users and portal access from one place.</p>
+        <p class="page-subtitle">Manage users, batches and students from one place.</p>
+        <div class="admin-subnav mt-3">
+            <a href="{{ url_for('admin') }}" class="admin-tab is-active">
+                <i class="bi bi-people"></i> Users
+            </a>
+            <a href="{{ url_for('admin_batches') }}" class="admin-tab">
+                <i class="bi bi-collection"></i> Batches
+            </a>
+            <a href="{{ url_for('admin_students') }}" class="admin-tab">
+                <i class="bi bi-mortarboard"></i> Students
+            </a>
+        </div>
     </div>
 
     {% with messages = get_flashed_messages() %}

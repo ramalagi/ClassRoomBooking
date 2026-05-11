@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+
+{% block title %}Manage Batches - NTTF Management{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header">
+        <h1 class="page-title"><i class="bi bi-collection me-2"></i>Manage Batches</h1>
+        <p class="page-subtitle">A batch is a unique combination of course, year and section.</p>
+        <div class="admin-subnav mt-3">
+            <a href="{{ url_for('admin') }}" class="admin-tab">
+                <i class="bi bi-people"></i> Users
+            </a>
+            <a href="{{ url_for('admin_batches') }}" class="admin-tab is-active">
+                <i class="bi bi-collection"></i> Batches
+            </a>
+            <a href="{{ url_for('admin_students') }}" class="admin-tab">
+                <i class="bi bi-mortarboard"></i> Students
+            </a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-info">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h2 class="h5 mb-3"><i class="bi bi-plus-circle me-2 text-primary"></i>Add a batch</h2>
+            <form method="POST" class="row g-3">
+                <input type="hidden" name="action" value="add">
+                <div class="col-md-4">
+                    <label class="form-label">Course</label>
+                    <input type="text" name="course" class="form-control" placeholder="e.g. Computer Science" required>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Year</label>
+                    <select name="year" class="form-select" required>
+                        <option value="1">1st Year</option>
+                        <option value="2">2nd Year</option>
+                        <option value="3">3rd Year</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Section</label>
+                    <input type="text" name="section" class="form-control" placeholder="A" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Display name (optional)</label>
+                    <input type="text" name="name" class="form-control" placeholder="auto-generated if blank">
+                </div>
+                <div class="col-12 text-end">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Add batch
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h2 class="h5 mb-3"><i class="bi bi-list-ul me-2 text-primary"></i>Existing batches ({{ batches|length }})</h2>
+            <div class="table-responsive">
+                <table class="table table-striped align-middle">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Course</th>
+                            <th>Year</th>
+                            <th>Section</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for b in batches %}
+                        <tr>
+                            <td><strong>{{ b.name }}</strong></td>
+                            <td>{{ b.course or '—' }}</td>
+                            <td>{{ b.year or '—' }}</td>
+                            <td>{{ b.section or '—' }}</td>
+                            <td class="text-end">
+                                <form method="POST" style="display:inline;">
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="batch_id" value="{{ b.id }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete batch {{ b.name }}? Existing students/attendance referencing it will need re-assignment.')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="5" class="text-center text-muted py-4">No batches yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -4,8 +4,9 @@ from collections import namedtuple
 # Simple data classes for returned objects
 Room = namedtuple('Room', ['id', 'name', 'type'])
 TimeSlot = namedtuple('TimeSlot', ['id', 'day', 'period'])
-Student = namedtuple('Student', ['id', 'user_id', 'name', 'email', 'batch_id'])
-Batch = namedtuple('Batch', ['id', 'name', 'faculty_id'])
+Student = namedtuple('Student', ['id', 'user_id', 'name', 'email', 'batch_id',
+                                 'student_code', 'parent_name', 'phone'])
+Batch = namedtuple('Batch', ['id', 'name', 'faculty_id', 'course', 'year', 'section'])
 Attendance = namedtuple('Attendance', ['id', 'student_id', 'batch_id', 'date', 'session_id', 'status', 'marked_by'])
 
 
@@ -60,7 +61,10 @@ def create_tables():
         CREATE TABLE IF NOT EXISTS Batches (
             id SERIAL PRIMARY KEY,
             name TEXT NOT NULL,
-            faculty_id INTEGER REFERENCES Users(id)
+            faculty_id INTEGER REFERENCES Users(id),
+            course TEXT,
+            year INTEGER,
+            section TEXT
         )
     ''')
 
@@ -70,7 +74,10 @@ def create_tables():
             user_id INTEGER UNIQUE REFERENCES Users(id),
             name TEXT NOT NULL,
             email TEXT,
-            batch_id INTEGER REFERENCES Batches(id)
+            batch_id INTEGER REFERENCES Batches(id),
+            student_code TEXT,
+            parent_name TEXT,
+            phone TEXT
         )
     ''')
 
@@ -101,8 +108,21 @@ def create_tables():
 
     # Idempotent schema migrations for tables that existed before these
     # columns were introduced. ADD COLUMN IF NOT EXISTS is safe to re-run.
-    cursor.execute("ALTER TABLE Users ADD COLUMN IF NOT EXISTS name TEXT")
-    cursor.execute("ALTER TABLE Users ADD COLUMN IF NOT EXISTS email TEXT")
+    cursor.execute("ALTER TABLE Users    ADD COLUMN IF NOT EXISTS name TEXT")
+    cursor.execute("ALTER TABLE Users    ADD COLUMN IF NOT EXISTS email TEXT")
+    cursor.execute("ALTER TABLE Batches  ADD COLUMN IF NOT EXISTS course TEXT")
+    cursor.execute("ALTER TABLE Batches  ADD COLUMN IF NOT EXISTS year INTEGER")
+    cursor.execute("ALTER TABLE Batches  ADD COLUMN IF NOT EXISTS section TEXT")
+    cursor.execute("ALTER TABLE Students ADD COLUMN IF NOT EXISTS student_code TEXT")
+    cursor.execute("ALTER TABLE Students ADD COLUMN IF NOT EXISTS parent_name TEXT")
+    cursor.execute("ALTER TABLE Students ADD COLUMN IF NOT EXISTS phone TEXT")
+    cursor.execute("ALTER TABLE Students ALTER COLUMN user_id DROP NOT NULL")
+
+    # Unique index on student_code so duplicates can't be inserted
+    cursor.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS students_student_code_unique "
+        "ON Students (student_code) WHERE student_code IS NOT NULL"
+    )
 
     conn.commit()
     cursor.close()
@@ -154,12 +174,24 @@ def insert_sample_data():
         if row:
             faculty_id = row[0]
             cursor.executemany(
-                "INSERT INTO Batches (name, faculty_id) VALUES (%s, %s)",
-                [('Batch A', faculty_id), ('Batch B', faculty_id)]
+                "INSERT INTO Batches (name, faculty_id, course, year, section) "
+                "VALUES (%s, %s, %s, %s, %s)",
+                [
+                    ('CS Year 1 - A', faculty_id, 'Computer Science', 1, 'A'),
+                    ('CS Year 1 - B', faculty_id, 'Computer Science', 1, 'B'),
+                ]
             )
 
+    # Backfill legacy Batches rows that pre-date the course/year/section columns
+    cursor.execute(
+        "UPDATE Batches SET course = COALESCE(course, %s), "
+        "year = COALESCE(year, %s), section = COALESCE(section, %s) "
+        "WHERE course IS NULL OR year IS NULL OR section IS NULL",
+        ('Computer Science', 1, 'A')
+    )
+
     if _table_is_empty(cursor, 'Students'):
-        cursor.execute("SELECT id, name FROM Batches ORDER BY id")
+        cursor.execute("SELECT id FROM Batches ORDER BY id")
         batch_rows = cursor.fetchall()
         cursor.execute(
             "SELECT id, username FROM Users WHERE username IN ('student1','student2','student3')"
@@ -169,17 +201,22 @@ def insert_sample_data():
             batch_a_id = batch_rows[0][0]
             batch_b_id = batch_rows[1][0] if len(batch_rows) > 1 else batch_a_id
             students = [
-                (student_users['student1'], 'Student One', 'student1@nttf.com', batch_a_id),
-                (student_users['student2'], 'Student Two', 'student2@nttf.com', batch_a_id),
-                (student_users['student3'], 'Student Three', 'student3@nttf.com', batch_b_id)
+                (student_users['student1'], 'Student One', 'student1@nttf.com', batch_a_id,
+                 'S001', 'Anand Kumar', '9876543210'),
+                (student_users['student2'], 'Student Two', 'student2@nttf.com', batch_a_id,
+                 'S002', 'Priya Sharma', '9876543211'),
+                (student_users['student3'], 'Student Three', 'student3@nttf.com', batch_b_id,
+                 'S003', 'Ravi Iyer', '9876543212'),
             ]
             cursor.executemany(
-                "INSERT INTO Students (user_id, name, email, batch_id) VALUES (%s, %s, %s, %s)",
+                "INSERT INTO Students "
+                "(user_id, name, email, batch_id, student_code, parent_name, phone) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s)",
                 students
             )
 
-    # Backfill name/email for any pre-existing users seeded before those
-    # columns existed (so the login session doesn't carry None values).
+    # Backfill name/email for any pre-existing admin row seeded before
+    # those columns existed (so the login session doesn't carry None values).
     cursor.execute(
         "UPDATE Users SET name = %s, email = %s WHERE username = %s AND (name IS NULL OR email IS NULL)",
         ('Admin User', 'admin@nttf.com', 'admin')
@@ -331,41 +368,307 @@ def cancel_booking(booking_id, user_id, is_admin=False):
 
 
 # Attendance functions
+_STUDENT_COLS = "s.id, s.user_id, s.name, s.email, s.batch_id, s.student_code, s.parent_name, s.phone"
+_BATCH_COLS = "id, name, faculty_id, course, year, section"
+
+
+def _student_from_row(s):
+    return Student(id=s[0], user_id=s[1], name=s[2], email=s[3], batch_id=s[4],
+                   student_code=s[5], parent_name=s[6], phone=s[7])
+
+
+def _batch_from_row(b):
+    return Batch(id=b[0], name=b[1], faculty_id=b[2], course=b[3], year=b[4], section=b[5])
+
+
 def get_students(batch_id=None):
     conn = get_db_connection()
     cursor = conn.cursor()
     if batch_id:
-        cursor.execute("""
-            SELECT s.id, s.user_id, s.name, s.email, s.batch_id
-            FROM Students s
-            WHERE s.batch_id = %s
-            ORDER BY s.id
-        """, (batch_id,))
+        cursor.execute(
+            f"SELECT {_STUDENT_COLS} FROM Students s WHERE s.batch_id = %s ORDER BY s.id",
+            (batch_id,)
+        )
     else:
-        cursor.execute("""
-            SELECT s.id, s.user_id, s.name, s.email, s.batch_id
-            FROM Students s
-            ORDER BY s.id
-        """)
-    students_data = cursor.fetchall()
+        cursor.execute(f"SELECT {_STUDENT_COLS} FROM Students s ORDER BY s.id")
+    rows = cursor.fetchall()
     cursor.close()
     conn.close()
-    return [Student(id=s[0], user_id=s[1], name=s[2], email=s[3], batch_id=s[4]) for s in students_data]
+    return [_student_from_row(r) for r in rows]
 
 
 def get_batches(faculty_id=None):
     conn = get_db_connection()
     cursor = conn.cursor()
     if faculty_id:
-        cursor.execute("""
-            SELECT id, name, faculty_id FROM Batches WHERE faculty_id = %s ORDER BY id
-        """, (faculty_id,))
+        cursor.execute(
+            f"SELECT {_BATCH_COLS} FROM Batches WHERE faculty_id = %s ORDER BY id",
+            (faculty_id,)
+        )
     else:
-        cursor.execute("SELECT id, name, faculty_id FROM Batches ORDER BY id")
-    batches_data = cursor.fetchall()
+        cursor.execute(f"SELECT {_BATCH_COLS} FROM Batches ORDER BY id")
+    rows = cursor.fetchall()
     cursor.close()
     conn.close()
-    return [Batch(id=b[0], name=b[1], faculty_id=b[2]) for b in batches_data]
+    return [_batch_from_row(r) for r in rows]
+
+
+# ---- Cascade getters: Course -> Year -> Section -> Batch ---------------------
+
+def get_courses(faculty_id=None):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    if faculty_id:
+        cursor.execute(
+            "SELECT DISTINCT course FROM Batches "
+            "WHERE course IS NOT NULL AND faculty_id = %s ORDER BY course",
+            (faculty_id,)
+        )
+    else:
+        cursor.execute("SELECT DISTINCT course FROM Batches WHERE course IS NOT NULL ORDER BY course")
+    courses = [row[0] for row in cursor.fetchall()]
+    cursor.close()
+    conn.close()
+    return courses
+
+
+def get_years_for_course(course, faculty_id=None):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    params = [course]
+    sql = "SELECT DISTINCT year FROM Batches WHERE course = %s AND year IS NOT NULL"
+    if faculty_id:
+        sql += " AND faculty_id = %s"
+        params.append(faculty_id)
+    sql += " ORDER BY year"
+    cursor.execute(sql, params)
+    years = [row[0] for row in cursor.fetchall()]
+    cursor.close()
+    conn.close()
+    return years
+
+
+def get_sections_for_course_year(course, year, faculty_id=None):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    params = [course, year]
+    sql = ("SELECT DISTINCT section FROM Batches "
+           "WHERE course = %s AND year = %s AND section IS NOT NULL")
+    if faculty_id:
+        sql += " AND faculty_id = %s"
+        params.append(faculty_id)
+    sql += " ORDER BY section"
+    cursor.execute(sql, params)
+    sections = [row[0] for row in cursor.fetchall()]
+    cursor.close()
+    conn.close()
+    return sections
+
+
+def get_batch_by_course_year_section(course, year, section, faculty_id=None):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    params = [course, year, section]
+    sql = (f"SELECT {_BATCH_COLS} FROM Batches "
+           "WHERE course = %s AND year = %s AND section = %s")
+    if faculty_id:
+        sql += " AND faculty_id = %s"
+        params.append(faculty_id)
+    sql += " LIMIT 1"
+    cursor.execute(sql, params)
+    row = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return _batch_from_row(row) if row else None
+
+
+# ---- Batches admin ----------------------------------------------------------
+
+def add_batch(name, course, year, section, faculty_id=None):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO Batches (name, faculty_id, course, year, section) "
+            "VALUES (%s, %s, %s, %s, %s) RETURNING id",
+            (name, faculty_id, course, year, section)
+        )
+        batch_id = cursor.fetchone()[0]
+        conn.commit()
+        return batch_id
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def delete_batch(batch_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM Batches WHERE id = %s", (batch_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def find_or_create_batch(course, year, section, faculty_id=None):
+    """Returns a batch id for the (course, year, section) triple,
+    creating it if it doesn't exist."""
+    existing = get_batch_by_course_year_section(course, year, section)
+    if existing:
+        return existing.id
+    name = f"{course} - Year {year} - {section}"
+    return add_batch(name, course, year, section, faculty_id)
+
+
+# ---- Students admin ---------------------------------------------------------
+
+def add_student(name, email, student_code, course, year, section,
+                parent_name, phone, faculty_id=None):
+    """Adds a student. Auto-creates the batch if needed. user_id stays NULL."""
+    batch_id = find_or_create_batch(course, year, section, faculty_id)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO Students "
+            "(user_id, name, email, batch_id, student_code, parent_name, phone) "
+            "VALUES (NULL, %s, %s, %s, %s, %s, %s) RETURNING id",
+            (name, email, batch_id, student_code, parent_name, phone)
+        )
+        sid = cursor.fetchone()[0]
+        conn.commit()
+        return sid
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def delete_student(student_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Remove attendance rows first to avoid FK constraint
+        cursor.execute("DELETE FROM Attendance WHERE student_id = %s", (student_id,))
+        cursor.execute("DELETE FROM Students WHERE id = %s", (student_id,))
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        return deleted
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+
+def get_students_with_batch():
+    """Returns rows joining Students + Batches for the admin list view."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT s.id, s.student_code, s.name, s.email, s.parent_name, s.phone,
+               b.course, b.year, b.section, b.id
+        FROM Students s
+        LEFT JOIN Batches b ON s.batch_id = b.id
+        ORDER BY b.course NULLS LAST, b.year NULLS LAST, b.section NULLS LAST, s.name
+    """)
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return rows
+
+
+def bulk_add_students(records):
+    """records: list of dicts with keys: student_code, name, email, course,
+    year, section, parent_name, phone. Returns (added, skipped, errors)."""
+    added, skipped, errors = 0, 0, []
+    existing_codes = set()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT student_code FROM Students WHERE student_code IS NOT NULL")
+        existing_codes = {row[0] for row in cursor.fetchall()}
+    finally:
+        cursor.close()
+        conn.close()
+
+    for idx, rec in enumerate(records, start=2):  # row 1 is the header
+        try:
+            code = (rec.get('student_code') or '').strip()
+            if not code:
+                errors.append(f"Row {idx}: student_code is required")
+                continue
+            if code in existing_codes:
+                skipped += 1
+                continue
+            name = (rec.get('name') or '').strip()
+            if not name:
+                errors.append(f"Row {idx}: name is required")
+                continue
+            year_raw = rec.get('year')
+            try:
+                year = int(year_raw) if year_raw not in (None, '') else None
+            except (TypeError, ValueError):
+                errors.append(f"Row {idx}: year must be a number (1/2/3)")
+                continue
+            course = (rec.get('course') or '').strip() or None
+            section = (rec.get('section') or '').strip() or None
+            if not (course and year and section):
+                errors.append(f"Row {idx}: course, year and section are required")
+                continue
+            add_student(
+                name=name,
+                email=(rec.get('email') or '').strip() or None,
+                student_code=code,
+                course=course,
+                year=year,
+                section=section,
+                parent_name=(rec.get('parent_name') or '').strip() or None,
+                phone=(rec.get('phone') or '').strip() or None,
+            )
+            existing_codes.add(code)
+            added += 1
+        except Exception as exc:
+            errors.append(f"Row {idx}: {exc}")
+    return added, skipped, errors
+
+
+def parse_students_xlsx(file_stream):
+    """Parses an .xlsx file with a header row and the expected columns.
+    Returns a list of dicts. Raises ValueError if required columns missing."""
+    from openpyxl import load_workbook
+    wb = load_workbook(file_stream, data_only=True, read_only=True)
+    ws = wb.active
+    rows = ws.iter_rows(values_only=True)
+    try:
+        header = next(rows)
+    except StopIteration:
+        return []
+    expected = ['student_code', 'name', 'email', 'course', 'year', 'section',
+                'parent_name', 'phone']
+    normalized = [str(h).strip().lower().replace(' ', '_') if h else '' for h in header]
+    missing = [c for c in expected if c not in normalized]
+    if missing:
+        raise ValueError(f"Missing required columns: {', '.join(missing)}")
+    col_index = {c: normalized.index(c) for c in expected}
+    records = []
+    for row in rows:
+        if row is None or all(v is None or str(v).strip() == '' for v in row):
+            continue
+        rec = {col: row[col_index[col]] for col in expected}
+        records.append(rec)
+    return records
 
 
 def get_attendance(batch_id, date, session_id=None):
