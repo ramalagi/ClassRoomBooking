@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+
+{% block title %}Notifications - NTTF Management{% endblock %}
+
+{% block head %}
+<style>
+    .status-pill {
+        display: inline-block;
+        padding: .15rem .55rem;
+        border-radius: 999px;
+        font-size: .72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+    .status-pill.queued     { background:#e0e7ff; color:#4338ca; }
+    .status-pill.sending    { background:#fef3c7; color:#b45309; }
+    .status-pill.sent       { background:#d1fae5; color:#047857; }
+    .status-pill.failed     { background:#fee2e2; color:#b91c1c; }
+    .status-pill.suppressed { background:#f1f5f9; color:#64748b; }
+
+    .stat-tiles {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+    .stat-tile {
+        background: #fff;
+        border: 1px solid var(--border, #e2e8f0);
+        border-radius: 12px;
+        padding: 1rem;
+        text-align: center;
+        text-decoration: none;
+        color: inherit;
+    }
+    .stat-tile.is-active {
+        border-color: var(--brand-blue, #2563eb);
+        box-shadow: 0 0 0 2px var(--brand-blue-soft, #e8efff);
+    }
+    .stat-tile .num { font-size: 1.4rem; font-weight: 700; line-height: 1; }
+    .stat-tile .lbl { font-size: .75rem; color: #64748b; text-transform: uppercase; margin-top: .25rem; letter-spacing: .05em; }
+    .ts-cell { white-space: nowrap; color: #475569; font-variant-numeric: tabular-nums; font-size: .85rem; }
+    .ch-pill {
+        display: inline-block; padding: .15rem .45rem; border-radius: 6px;
+        font-size: .72rem; font-weight: 600;
+        background: #f1f5f9; color: #475569; text-transform: uppercase;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header">
+        <h1 class="page-title"><i class="bi bi-envelope-paper me-2"></i>Parent Notifications</h1>
+        <p class="page-subtitle">Outgoing absent-notification queue + delivery log.</p>
+        <div class="admin-subnav mt-3">
+            <a href="{{ url_for('admin') }}" class="admin-tab">
+                <i class="bi bi-people"></i> Users
+            </a>
+            <a href="{{ url_for('admin_courses') }}" class="admin-tab">
+                <i class="bi bi-mortarboard-fill"></i> Courses
+            </a>
+            <a href="{{ url_for('admin_batches') }}" class="admin-tab">
+                <i class="bi bi-collection"></i> Batches
+            </a>
+            <a href="{{ url_for('admin_students') }}" class="admin-tab">
+                <i class="bi bi-people-fill"></i> Students
+            </a>
+            <a href="{{ url_for('admin_notifications') }}" class="admin-tab is-active">
+                <i class="bi bi-envelope-paper"></i> Notifications
+            </a>
+            <a href="{{ url_for('admin_audit') }}" class="admin-tab">
+                <i class="bi bi-journal-text"></i> Audit
+            </a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for m in messages %}<div class="alert alert-info">{{ m }}</div>{% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="stat-tiles">
+        {% for s in ['queued', 'sending', 'sent', 'failed', 'suppressed'] %}
+        <a href="{{ url_for('admin_notifications', status=s) }}"
+           class="stat-tile {% if filter_status == s %}is-active{% endif %}">
+            <div class="num"><span class="status-pill {{ s }}">{{ s }}</span></div>
+            <div class="num mt-2">{{ counts.get(s, 0) }}</div>
+            <div class="lbl">{{ s }}</div>
+        </a>
+        {% endfor %}
+        <a href="{{ url_for('admin_notifications') }}"
+           class="stat-tile {% if not filter_status %}is-active{% endif %}">
+            <div class="num">All</div>
+            <div class="num mt-2">{{ counts.values()|sum }}</div>
+            <div class="lbl">Total</div>
+        </a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h2 class="h5 mb-3">
+                <i class="bi bi-list-ol me-2 text-primary"></i>
+                {{ rows|length }} entrie(s){% if filter_status %} — <code>{{ filter_status }}</code>{% endif %}
+            </h2>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Queued</th>
+                            <th>Student</th>
+                            <th>Channel</th>
+                            <th>Recipient</th>
+                            <th>Status</th>
+                            <th>Attempts</th>
+                            <th>Provider / Error</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td class="ts-cell">{{ r.queued_at.strftime('%Y-%m-%d %H:%M:%S') if r.queued_at else '—' }}</td>
+                            <td>
+                                <div><strong>{{ r.student_name }}</strong></div>
+                                <small class="text-muted">{{ r.student_code or '—' }}</small>
+                            </td>
+                            <td><span class="ch-pill">{{ r.channel }}</span></td>
+                            <td><code>{{ r.recipient or '—' }}</code></td>
+                            <td><span class="status-pill {{ r.status }}">{{ r.status }}</span></td>
+                            <td>{{ r.attempt_count }} / 5</td>
+                            <td>
+                                {% if r.status == 'sent' %}
+                                    <small class="text-muted">{{ r.provider or '—' }}</small>
+                                {% elif r.last_error %}
+                                    <small class="text-danger">{{ r.last_error|truncate(60) }}</small>
+                                {% else %}
+                                    <small class="text-muted">—</small>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                {% if r.status in ('failed', 'suppressed') %}
+                                <form method="POST" action="{{ url_for('admin_retry_notification', notif_id=r.id) }}" style="display:inline;">
+                                    <button type="submit" class="btn btn-sm btn-outline-warning"
+                                            title="Re-queue this notification">
+                                        <i class="bi bi-arrow-clockwise"></i> Retry
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="8" class="text-center text-muted py-5">
+                            <i class="bi bi-inbox" style="font-size:2rem;"></i>
+                            <div class="mt-2">No notifications match this filter.</div>
+                        </td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

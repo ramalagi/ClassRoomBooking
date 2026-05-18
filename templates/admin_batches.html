@@ -11,11 +11,17 @@
             <a href="{{ url_for('admin') }}" class="admin-tab">
                 <i class="bi bi-people"></i> Users
             </a>
+            <a href="{{ url_for('admin_courses') }}" class="admin-tab">
+                <i class="bi bi-mortarboard-fill"></i> Courses
+            </a>
             <a href="{{ url_for('admin_batches') }}" class="admin-tab is-active">
                 <i class="bi bi-collection"></i> Batches
             </a>
             <a href="{{ url_for('admin_students') }}" class="admin-tab">
-                <i class="bi bi-mortarboard"></i> Students
+                <i class="bi bi-people-fill"></i> Students
+            </a>
+            <a href="{{ url_for('admin_audit') }}" class="admin-tab">
+                <i class="bi bi-journal-text"></i> Audit
             </a>
         </div>
     </div>

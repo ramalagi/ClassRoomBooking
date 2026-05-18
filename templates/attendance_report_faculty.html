@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+
+{% block title %}Faculty Activity - Attendance Reports{% endblock %}
+
+{% block head %}
+<style>
+    .type-pill { font-size:.7rem; padding:.15rem .5rem; border-radius:999px; font-weight:600; text-transform:uppercase; }
+    .type-pill.general { background:#e0e7ff; color:#4338ca; }
+    .type-pill.subject { background:#cffafe; color:#0e7490; }
+    .type-pill.lab     { background:#fce7f3; color:#be185d; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header">
+        <h1 class="page-title"><i class="bi bi-person-badge me-2"></i>Faculty Activity</h1>
+        <p class="page-subtitle">Per-day marking activity by faculty members.</p>
+        <div><a href="{{ url_for('attendance_reports') }}" class="text-decoration-none">
+            <i class="bi bi-arrow-left"></i> Back to Reports
+        </a></div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <form method="GET" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label">Faculty <small class="text-muted">(blank = all)</small></label>
+                    <select name="faculty_id" class="form-select">
+                        <option value="">— All faculty —</option>
+                        {% for f in faculty %}
+                        <option value="{{ f[0] }}" {% if filter_faculty_id and f[0] == filter_faculty_id %}selected{% endif %}>
+                            {{ f[1] or f[2] }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2"><label class="form-label">From</label>
+                    <input type="date" name="from_date" class="form-control" value="{{ from_date or '' }}"></div>
+                <div class="col-md-2"><label class="form-label">To</label>
+                    <input type="date" name="to_date" class="form-control" value="{{ to_date or '' }}"></div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-funnel"></i> Apply</button>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    {% if rows %}
+                    <a href="{{ url_for('attendance_report_faculty', faculty_id=filter_faculty_id, from_date=from_date, to_date=to_date, include_archive='1' if include_archive else '', export='csv') }}" class="btn btn-outline-secondary w-100">
+                        <i class="bi bi-download"></i> CSV
+                    </a>
+                    {% endif %}
+                </div>
+                <div class="col-12">
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" name="include_archive" value="1" id="incArc" {% if include_archive %}checked{% endif %}>
+                        <label class="form-check-label" for="incArc">Include archived rows (older than 2 years)</label>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h2 class="h5 mb-3">
+                <i class="bi bi-list-ul me-2 text-primary"></i>
+                {{ rows|length }} entry(ies)
+            </h2>
+            {% if rows %}
+            <div class="table-responsive">
+                <table class="table table-striped align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Faculty</th>
+                            <th>Type</th>
+                            <th class="text-end">Marks</th>
+                            <th class="text-end">Present</th>
+                            <th class="text-end">Absent</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td>{{ r.date }}</td>
+                            <td>
+                                <strong>{{ r.marked_by_name or r.username }}</strong>
+                                <div><small class="text-muted">{{ r.username }}</small></div>
+                            </td>
+                            <td><span class="type-pill {{ r.type }}">{{ r.type }}</span></td>
+                            <td class="text-end">{{ r.marks }}</td>
+                            <td class="text-end text-success">{{ r.present }}</td>
+                            <td class="text-end text-danger">{{ r.absent }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted text-center py-4 mb-0">No marking activity in this filter.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+
+{% block title %}Upload Preview - NTTF Management{% endblock %}
+
+{% block head %}
+<style>
+    .verdict-pill {
+        display: inline-block;
+        font-size: .72rem;
+        font-weight: 600;
+        padding: .15rem .55rem;
+        border-radius: 999px;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+    .verdict-ok        { background: #d1fae5; color: #047857; }
+    .verdict-warn      { background: #fef3c7; color: #b45309; }
+    .verdict-error     { background: #fee2e2; color: #b91c1c; }
+    .verdict-duplicate { background: #e0e7ff; color: #4338ca; }
+    .row-error td, .row-duplicate td { background: #fef9f9; }
+    .row-warn td  { background: #fffbf2; }
+    .preview-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 1rem;
+    }
+    .stat-tile {
+        background: var(--surface, #fff);
+        border: 1px solid var(--border, #e2e8f0);
+        border-radius: 12px;
+        padding: 1rem;
+        text-align: center;
+    }
+    .stat-tile .num { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
+    .stat-tile .lbl { font-size: .78rem; color: #64748b; text-transform: uppercase; letter-spacing: .05em; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header">
+        <h1 class="page-title"><i class="bi bi-file-earmark-spreadsheet me-2"></i>Upload Preview</h1>
+        <p class="page-subtitle">
+            Reviewing <strong>{{ filename }}</strong> — {{ summary.total }} row(s) parsed.
+            Nothing has been inserted yet.
+        </p>
+        <div class="admin-subnav mt-3">
+            <a href="{{ url_for('admin') }}" class="admin-tab">
+                <i class="bi bi-people"></i> Users
+            </a>
+            <a href="{{ url_for('admin_courses') }}" class="admin-tab">
+                <i class="bi bi-mortarboard-fill"></i> Courses
+            </a>
+            <a href="{{ url_for('admin_batches') }}" class="admin-tab">
+                <i class="bi bi-collection"></i> Batches
+            </a>
+            <a href="{{ url_for('admin_students') }}" class="admin-tab is-active">
+                <i class="bi bi-people-fill"></i> Students
+            </a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="preview-stats mb-3">
+                <div class="stat-tile">
+                    <div class="num text-success">{{ summary.valid }}</div>
+                    <div class="lbl">Valid &amp; Mapped</div>
+                </div>
+                <div class="stat-tile">
+                    <div class="num text-warning">{{ summary.unassigned }}</div>
+                    <div class="lbl">Unassigned</div>
+                </div>
+                <div class="stat-tile">
+                    <div class="num text-danger">{{ summary.errors }}</div>
+                    <div class="lbl">Errors</div>
+                </div>
+                <div class="stat-tile">
+                    <div class="num" style="color:#4338ca;">{{ summary.duplicates }}</div>
+                    <div class="lbl">Duplicates</div>
+                </div>
+            </div>
+            <div class="alert alert-info mb-0">
+                <i class="bi bi-info-circle me-1"></i>
+                Only <strong>Valid &amp; Mapped</strong> and <strong>Unassigned</strong> rows
+                will be imported. Errors and duplicates are skipped.
+                Unassigned students will appear on the Students list with no course/year/section
+                until you assign them.
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h2 class="h5 mb-3"><i class="bi bi-list-ol me-2 text-primary"></i>Row-by-row verdict</h2>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle small">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Verdict</th>
+                            <th>Student ID</th>
+                            <th>Name</th>
+                            <th>Course</th>
+                            <th>Year</th>
+                            <th>Section</th>
+                            <th>Reason / Section</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr class="row-{{ r.verdict }}">
+                            <td><span class="text-muted">{{ r.row_index }}</span></td>
+                            <td>
+                                {% if r.verdict == 'ok' %}
+                                    <span class="verdict-pill verdict-ok">Valid</span>
+                                {% elif r.verdict == 'warn' %}
+                                    <span class="verdict-pill verdict-warn">Unassigned</span>
+                                {% elif r.verdict == 'duplicate' %}
+                                    <span class="verdict-pill verdict-duplicate">Duplicate</span>
+                                {% else %}
+                                    <span class="verdict-pill verdict-error">Error</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ r.student_code or '—' }}</td>
+                            <td>{{ r.name or '—' }}</td>
+                            <td>{{ r.course or '—' }}</td>
+                            <td>{{ r.year or '—' }}</td>
+                            <td>{{ r.section or '—' }}</td>
+                            <td>
+                                {% if r.verdict == 'ok' %}
+                                    <span class="text-muted">→ section_id {{ r.section_id }}</span>
+                                {% else %}
+                                    {{ r.reason }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('admin_commit_students') }}">
+        <input type="hidden" name="rows_json" value='{{ rows_json|e }}'>
+        <div class="d-flex justify-content-end gap-2">
+            <a href="{{ url_for('admin_students') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-x-circle"></i> Cancel
+            </a>
+            <button type="submit" class="btn btn-success"
+                    {% if summary.valid == 0 and summary.unassigned == 0 %}disabled{% endif %}>
+                <i class="bi bi-check2-circle"></i>
+                Commit {{ summary.valid + summary.unassigned }} row(s)
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

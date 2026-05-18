@@ -17,9 +17,7 @@
         {% endif %}
     {% endwith %}
 
-    <div class="cascade-shell"
-         id="cascadeShell"
-         data-courses='{{ courses|tojson }}'>
+    <div class="cascade-shell" id="cascadeShell">
 
         <ol class="cascade-progress">
             <li class="step active" data-step="course">
@@ -50,9 +48,10 @@
             <div class="chip-grid" id="courseGrid">
                 {% if courses %}
                     {% for c in courses %}
-                    <button type="button" class="chip-card chip-card--course" data-value="{{ c }}">
+                    <button type="button" class="chip-card chip-card--course"
+                            data-course-id="{{ c.id }}" data-course-name="{{ c.name }}">
                         <span class="chip-icon"><i class="bi bi-mortarboard-fill"></i></span>
-                        <span class="chip-label">{{ c }}</span>
+                        <span class="chip-label">{{ c.name }}</span>
                     </button>
                     {% endfor %}
                 {% else %}
@@ -112,8 +111,12 @@
     const shell = document.getElementById('cascadeShell');
     if (!shell) return;
 
-    const courses = JSON.parse(shell.dataset.courses || '[]');
-    const state = { course: null, year: null, section: null, batchId: null };
+    const state = {
+        courseId: null, courseName: null,
+        courseYearId: null, yearNumber: null,
+        sectionId: null, sectionLabel: null,
+        batchId: null,
+    };
 
     const stepCourse = document.getElementById('step-course');
     const stepYear = document.getElementById('step-year');
@@ -128,19 +131,18 @@
     const backBtn = document.getElementById('cascadeBack');
     const reportsBtn = document.getElementById('cascadeReports');
     const stepIndicators = shell.querySelectorAll('.cascade-progress .step');
+    const stepOrder = ['course', 'year', 'section', 'subject'];
 
     function setActiveStep(name) {
         stepIndicators.forEach((el) => {
             el.classList.toggle('active', el.dataset.step === name);
-            el.classList.toggle('done', stepOrder.indexOf(el.dataset.step) < stepOrder.indexOf(name));
+            el.classList.toggle('done',
+                stepOrder.indexOf(el.dataset.step) < stepOrder.indexOf(name));
         });
     }
-    const stepOrder = ['course', 'year', 'section', 'subject'];
-
     function reveal(section) {
         section.hidden = false;
         section.classList.remove('is-active');
-        // force reflow so the animation re-runs
         void section.offsetWidth;
         section.classList.add('is-active');
     }
@@ -148,84 +150,93 @@
         section.hidden = true;
         section.classList.remove('is-active');
     }
-    function makeChip(value, label, icon, modifier) {
+    function makeChip(label, icon, modifier) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'chip-card chip-card--' + modifier;
-        btn.dataset.value = value;
         btn.innerHTML = `<span class="chip-icon"><i class="bi ${icon}"></i></span>` +
                         `<span class="chip-label">${label}</span>`;
         return btn;
     }
-
     function ordinal(n) {
         const s = ['th', 'st', 'nd', 'rd'], v = n % 100;
         return n + (s[(v - 20) % 10] || s[v] || s[0]);
     }
+    function markSelected(scope, chip) {
+        document.querySelectorAll(scope + ' .chip-card').forEach((c) => c.classList.remove('selected'));
+        chip.classList.add('selected');
+    }
+    const LOADING_HTML = '<div class="cascade-loading"><span></span><span></span><span></span></div>';
+    const EMPTY_HTML = (msg) => `<div class="empty-state"><i class="bi bi-inboxes"></i><p>${msg}</p></div>`;
 
     document.querySelectorAll('#courseGrid .chip-card').forEach((chip) => {
-        chip.addEventListener('click', () => selectCourse(chip.dataset.value, chip));
+        chip.addEventListener('click', () => selectCourse(
+            parseInt(chip.dataset.courseId, 10), chip.dataset.courseName, chip));
     });
 
-    async function selectCourse(course, chip) {
-        state.course = course;
+    async function selectCourse(courseId, courseName, chip) {
+        state.courseId = courseId;
+        state.courseName = courseName;
         markSelected('#courseGrid', chip);
         actions.hidden = false;
-        reportsBtn.href = `/attendance/reports`;
+        reportsBtn.href = '/attendance/reports';
         setActiveStep('year');
-        yearSubtitle.textContent = `Years offered for ${course}.`;
-        yearGrid.innerHTML = '<div class="cascade-loading"><span></span><span></span><span></span></div>';
+        yearSubtitle.textContent = `Years offered for ${courseName}.`;
+        yearGrid.innerHTML = LOADING_HTML;
         reveal(stepYear);
         hide(stepSection); hide(stepSubject);
-        const res = await fetch(`/api/years?course=${encodeURIComponent(course)}`);
+        const res = await fetch(`/api/v2/years?course_id=${courseId}`);
         const years = await res.json();
         yearGrid.innerHTML = '';
         if (!years.length) {
-            yearGrid.innerHTML = '<div class="empty-state"><i class="bi bi-inboxes"></i><p>No years configured yet for this course.</p></div>';
+            yearGrid.innerHTML = EMPTY_HTML('No years configured yet for this course.');
             return;
         }
         years.forEach((y, idx) => {
-            const chip = makeChip(y, ordinal(y) + ' Year', 'bi-calendar3', 'year');
+            const chip = makeChip(ordinal(y.year_number) + ' Year', 'bi-calendar3', 'year');
             chip.style.animationDelay = (idx * 60) + 'ms';
-            chip.addEventListener('click', () => selectYear(y, chip));
+            chip.addEventListener('click', () => selectYear(y.id, y.year_number, chip));
             yearGrid.appendChild(chip);
         });
     }
 
-    async function selectYear(year, chip) {
-        state.year = year;
+    async function selectYear(courseYearId, yearNumber, chip) {
+        state.courseYearId = courseYearId;
+        state.yearNumber = yearNumber;
         markSelected('#yearGrid', chip);
         setActiveStep('section');
-        sectionSubtitle.textContent = `Sections available for ${state.course} — ${ordinal(year)} Year.`;
-        sectionGrid.innerHTML = '<div class="cascade-loading"><span></span><span></span><span></span></div>';
+        sectionSubtitle.textContent =
+            `Sections available for ${state.courseName} — ${ordinal(yearNumber)} Year.`;
+        sectionGrid.innerHTML = LOADING_HTML;
         reveal(stepSection);
         hide(stepSubject);
-        const res = await fetch(`/api/sections?course=${encodeURIComponent(state.course)}&year=${year}`);
+        const res = await fetch(`/api/v2/sections?course_year_id=${courseYearId}`);
         const sections = await res.json();
         sectionGrid.innerHTML = '';
         if (!sections.length) {
-            sectionGrid.innerHTML = '<div class="empty-state"><i class="bi bi-inboxes"></i><p>No sections configured for this year yet.</p></div>';
+            sectionGrid.innerHTML = EMPTY_HTML('No sections configured for this year yet.');
             return;
         }
         sections.forEach((s, idx) => {
-            const chip = makeChip(s, 'Section ' + s, 'bi-grid-3x3-gap-fill', 'section');
+            const chip = makeChip('Section ' + s.section_code, 'bi-grid-3x3-gap-fill', 'section');
             chip.style.animationDelay = (idx * 60) + 'ms';
-            chip.addEventListener('click', () => selectSection(s, chip));
+            chip.addEventListener('click', () => selectSection(s.id, s.section_code, chip));
             sectionGrid.appendChild(chip);
         });
     }
 
-    async function selectSection(section, chip) {
-        state.section = section;
+    async function selectSection(sectionId, sectionLabel, chip) {
+        state.sectionId = sectionId;
+        state.sectionLabel = sectionLabel;
         markSelected('#sectionGrid', chip);
         setActiveStep('subject');
-        const res = await fetch(`/api/batch?course=${encodeURIComponent(state.course)}&year=${state.year}&section=${encodeURIComponent(section)}`);
+        const res = await fetch(`/api/v2/batch?section_id=${sectionId}`);
         const data = await res.json();
         state.batchId = data.batch_id;
         subjectGrid.innerHTML = '';
         reveal(stepSubject);
         if (!state.batchId) {
-            subjectGrid.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-circle"></i><p>No batch found for this combination.</p></div>';
+            subjectGrid.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-circle"></i><p>No batch could be resolved for this section.</p></div>';
             return;
         }
         const card = document.createElement('a');
@@ -236,7 +247,7 @@
             <div class="subject-card__body">
                 <span class="subject-icon"><i class="bi bi-journal-bookmark-fill"></i></span>
                 <h3>General Attendance</h3>
-                <p class="subject-meta">${state.course} · ${ordinal(state.year)} Year · Section ${section}</p>
+                <p class="subject-meta">${state.courseName} · ${ordinal(state.yearNumber)} Year · Section ${sectionLabel}</p>
                 <span class="subject-cta">Mark attendance <i class="bi bi-arrow-right"></i></span>
             </div>
         `;
@@ -248,19 +259,16 @@
             <div class="subject-card__body">
                 <span class="subject-icon"><i class="bi bi-lock-fill"></i></span>
                 <h3>Per-subject attendance</h3>
-                <p class="subject-meta">Coming soon — once the subject master is added.</p>
+                <p class="subject-meta">Coming soon — once subject-level attendance is wired up.</p>
             </div>
         `;
         subjectGrid.appendChild(placeholder);
     }
 
-    function markSelected(scope, chip) {
-        document.querySelectorAll(scope + ' .chip-card').forEach((c) => c.classList.remove('selected'));
-        chip.classList.add('selected');
-    }
-
     backBtn.addEventListener('click', () => {
-        state.course = state.year = state.section = state.batchId = null;
+        state.courseId = state.courseName = null;
+        state.courseYearId = state.yearNumber = null;
+        state.sectionId = state.sectionLabel = state.batchId = null;
         document.querySelectorAll('.chip-card.selected').forEach((c) => c.classList.remove('selected'));
         hide(stepYear); hide(stepSection); hide(stepSubject);
         actions.hidden = true;

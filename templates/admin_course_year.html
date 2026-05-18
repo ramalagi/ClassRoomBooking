@@ -1,0 +1,291 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ course.name }} — Year {{ course_year.year_number }}{% endblock %}
+
+{% block head %}
+<style>
+    .breadcrumb-trail {
+        font-size: .85rem;
+        color: #64748b;
+        margin-top: .25rem;
+    }
+    .breadcrumb-trail a { color: var(--brand-blue-dark); text-decoration: none; }
+    .breadcrumb-trail a:hover { text-decoration: underline; }
+    .entity-section { margin-bottom: 2.5rem; }
+    .entity-section h2 { margin-bottom: 1rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header">
+        <h1 class="page-title">
+            <i class="bi bi-journals me-2"></i>
+            <span class="badge bg-primary me-2">{{ course.code }}</span>
+            {{ course.name }} — Year {{ course_year.year_number }}
+        </h1>
+        <p class="page-subtitle">Configure subjects and labs for this course-year.</p>
+        <div class="breadcrumb-trail">
+            <a href="{{ url_for('admin_courses') }}"><i class="bi bi-arrow-left"></i> Back to Courses</a>
+        </div>
+        <div class="admin-subnav mt-3">
+            <a href="{{ url_for('admin') }}" class="admin-tab">
+                <i class="bi bi-people"></i> Users
+            </a>
+            <a href="{{ url_for('admin_courses') }}" class="admin-tab is-active">
+                <i class="bi bi-mortarboard-fill"></i> Courses
+            </a>
+            <a href="{{ url_for('admin_batches') }}" class="admin-tab">
+                <i class="bi bi-collection"></i> Batches
+            </a>
+            <a href="{{ url_for('admin_students') }}" class="admin-tab">
+                <i class="bi bi-people-fill"></i> Students
+            </a>
+            <a href="{{ url_for('admin_audit') }}" class="admin-tab">
+                <i class="bi bi-journal-text"></i> Audit
+            </a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-info">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {# ------ SUBJECTS ------ #}
+    <div class="entity-section">
+        <h2 class="h4"><i class="bi bi-book me-2 text-primary"></i>Subjects</h2>
+
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <h3 class="h6 mb-3"><i class="bi bi-plus-circle me-2 text-primary"></i>Add a subject</h3>
+                        <form method="POST" action="{{ url_for('admin_add_subject', course_year_id=course_year.id) }}" class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">Code</label>
+                                <input type="text" name="code" class="form-control text-uppercase" placeholder="MA101" maxlength="16" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Name</label>
+                                <input type="text" name="name" class="form-control" placeholder="Mathematics" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Credits</label>
+                                <input type="number" name="credits" class="form-control" min="0" max="20">
+                            </div>
+                            <div class="col-12 text-end">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-plus-circle"></i> Add subject
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <h3 class="h6 mb-3"><i class="bi bi-file-earmark-excel me-2 text-success"></i>Bulk upload</h3>
+                        <p class="text-muted small">Excel (.xlsx) with these column headers:</p>
+                        <code class="bulk-columns">code, name, credits</code>
+                        <form method="POST" action="{{ url_for('admin_upload_subjects', course_year_id=course_year.id) }}" enctype="multipart/form-data" class="mt-3">
+                            <label class="upload-drop" for="subjectsFile">
+                                <span class="upload-drop__icon"><i class="bi bi-cloud-arrow-up-fill"></i></span>
+                                <span class="upload-drop__title">Drop .xlsx here or click to browse</span>
+                                <span class="upload-drop__subtitle" id="subjectsFileSubtitle">First row should be headers.</span>
+                                <input type="file" id="subjectsFile" name="file" accept=".xlsx" hidden>
+                            </label>
+                            <button type="submit" class="btn btn-success w-100 mt-3">
+                                <i class="bi bi-upload"></i> Upload subjects
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mt-3">
+            <div class="card-body">
+                <h3 class="h6 mb-3"><i class="bi bi-list-ul me-2 text-primary"></i>Existing subjects ({{ subjects|length }})</h3>
+                <div class="table-responsive">
+                    <table class="table table-striped align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Code</th>
+                                <th>Name</th>
+                                <th>Credits</th>
+                                <th>Status</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for s in subjects %}
+                            <tr>
+                                <td><strong>{{ s.code }}</strong></td>
+                                <td>{{ s.name }}</td>
+                                <td>{{ s.credits if s.credits is not none else '—' }}</td>
+                                <td>
+                                    {% if s.is_active %}<span class="badge bg-success">Active</span>
+                                    {% else %}<span class="badge bg-secondary">Inactive</span>{% endif %}
+                                </td>
+                                <td class="text-end">
+                                    {% if s.is_active %}
+                                    <form method="POST" action="{{ url_for('admin_deactivate_subject', subject_id=s.id) }}" style="display:inline;">
+                                        <input type="hidden" name="course_year_id" value="{{ course_year.id }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Deactivate {{ s.name }}?');">
+                                            <i class="bi bi-power"></i>
+                                        </button>
+                                    </form>
+                                    {% else %}
+                                    <form method="POST" action="{{ url_for('admin_reactivate_subject', subject_id=s.id) }}" style="display:inline;">
+                                        <input type="hidden" name="course_year_id" value="{{ course_year.id }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-success">
+                                            <i class="bi bi-arrow-counterclockwise"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="5" class="text-center text-muted py-4">No subjects yet.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ------ LABS ------ #}
+    <div class="entity-section">
+        <h2 class="h4"><i class="bi bi-cpu me-2 text-primary"></i>Labs</h2>
+
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <h3 class="h6 mb-3"><i class="bi bi-plus-circle me-2 text-primary"></i>Add a lab</h3>
+                        <form method="POST" action="{{ url_for('admin_add_lab', course_year_id=course_year.id) }}" class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Code</label>
+                                <input type="text" name="code" class="form-control text-uppercase" placeholder="PHYL" maxlength="16" required>
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label">Name</label>
+                                <input type="text" name="name" class="form-control" placeholder="Physics Lab" required>
+                            </div>
+                            <div class="col-12 text-end">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-plus-circle"></i> Add lab
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <h3 class="h6 mb-3"><i class="bi bi-file-earmark-excel me-2 text-success"></i>Bulk upload</h3>
+                        <p class="text-muted small">Excel (.xlsx) with these column headers:</p>
+                        <code class="bulk-columns">code, name</code>
+                        <form method="POST" action="{{ url_for('admin_upload_labs', course_year_id=course_year.id) }}" enctype="multipart/form-data" class="mt-3">
+                            <label class="upload-drop" for="labsFile">
+                                <span class="upload-drop__icon"><i class="bi bi-cloud-arrow-up-fill"></i></span>
+                                <span class="upload-drop__title">Drop .xlsx here or click to browse</span>
+                                <span class="upload-drop__subtitle" id="labsFileSubtitle">First row should be headers.</span>
+                                <input type="file" id="labsFile" name="file" accept=".xlsx" hidden>
+                            </label>
+                            <button type="submit" class="btn btn-success w-100 mt-3">
+                                <i class="bi bi-upload"></i> Upload labs
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mt-3">
+            <div class="card-body">
+                <h3 class="h6 mb-3"><i class="bi bi-list-ul me-2 text-primary"></i>Existing labs ({{ labs|length }})</h3>
+                <div class="table-responsive">
+                    <table class="table table-striped align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Code</th>
+                                <th>Name</th>
+                                <th>Status</th>
+                                <th class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for l in labs %}
+                            <tr>
+                                <td><strong>{{ l.code }}</strong></td>
+                                <td>{{ l.name }}</td>
+                                <td>
+                                    {% if l.is_active %}<span class="badge bg-success">Active</span>
+                                    {% else %}<span class="badge bg-secondary">Inactive</span>{% endif %}
+                                </td>
+                                <td class="text-end">
+                                    {% if l.is_active %}
+                                    <form method="POST" action="{{ url_for('admin_deactivate_lab', lab_id=l.id) }}" style="display:inline;">
+                                        <input type="hidden" name="course_year_id" value="{{ course_year.id }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Deactivate {{ l.name }}?');">
+                                            <i class="bi bi-power"></i>
+                                        </button>
+                                    </form>
+                                    {% else %}
+                                    <form method="POST" action="{{ url_for('admin_reactivate_lab', lab_id=l.id) }}" style="display:inline;">
+                                        <input type="hidden" name="course_year_id" value="{{ course_year.id }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-success">
+                                            <i class="bi bi-arrow-counterclockwise"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-center text-muted py-4">No labs yet.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    document.querySelectorAll('.upload-drop').forEach(drop => {
+        const input = drop.querySelector('input[type="file"]');
+        const subtitle = drop.querySelector('.upload-drop__subtitle');
+        if (!input || !subtitle) return;
+        input.addEventListener('change', () => {
+            if (input.files.length) subtitle.textContent = input.files[0].name;
+        });
+        ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, (e) => {
+            e.preventDefault(); drop.classList.add('is-hover');
+        }));
+        ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, (e) => {
+            e.preventDefault(); drop.classList.remove('is-hover');
+        }));
+        drop.addEventListener('drop', (e) => {
+            if (e.dataTransfer.files.length) {
+                input.files = e.dataTransfer.files;
+                subtitle.textContent = e.dataTransfer.files[0].name;
+            }
+        });
+    });
+})();
+</script>
+{% endblock %}

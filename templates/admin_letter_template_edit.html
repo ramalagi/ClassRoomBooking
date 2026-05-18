@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ 'New' if not template else 'Edit' }} Template - NTTF Management{% endblock %}
+
+{% block head %}
+<style>
+    textarea.body-html { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; min-height: 380px; }
+    .help-list code { background: #f1f5f9; padding: 1px 4px; border-radius: 3px; font-size: .85rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header">
+        <h1 class="page-title">
+            <i class="bi bi-file-text me-2"></i>
+            {% if template %}Edit Template: {{ template.name }}{% else %}New Template{% endif %}
+        </h1>
+        <div><a href="{{ url_for('admin_letter_templates') }}" class="text-decoration-none">
+            <i class="bi bi-arrow-left"></i> Back to templates
+        </a></div>
+    </div>
+
+    {% with messages = get_flashed_messages() %}{% if messages %}{% for m in messages %}<div class="alert alert-info">{{ m }}</div>{% endfor %}{% endif %}{% endwith %}
+
+    <form method="POST">
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input type="text" name="name" class="form-control"
+                                   value="{{ template.name if template else '' }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Subject line</label>
+                            <input type="text" name="subject_line" class="form-control"
+                                   value="{{ template.subject_line if template else 'IRREGULAR ATTENDANCE TO CLASS' }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Signature blocks (pipe-separated, left → right)</label>
+                            <input type="text" name="signature_blocks" class="form-control"
+                                   value="{{ '|'.join(template.signature_blocks) if template else 'SECTION I/C|COURSE INCHARGE|VICE PRINCIPAL|PRINCIPAL' }}">
+                            <small class="text-muted">Each segment becomes one signature column in the letter footer.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Body HTML</label>
+                            <textarea name="body_html" class="form-control body-html" required>{{ template.body_html if template else '' }}</textarea>
+                        </div>
+                        {% if template %}
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="is_active"
+                                   id="isActive" {% if template.is_active %}checked{% endif %}>
+                            <label class="form-check-label" for="isActive">Active</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="is_default"
+                                   id="isDefault" {% if template.is_default %}checked{% endif %}>
+                            <label class="form-check-label" for="isDefault">Default template (only one allowed)</label>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h3 class="h6 mb-2"><i class="bi bi-braces me-2 text-primary"></i>Available placeholders</h3>
+                        <ul class="help-list small ps-3 mb-0">
+                            <li><code>{{ '{{ student.name }}' }}</code></li>
+                            <li><code>{{ '{{ student.student_code }}' }}</code></li>
+                            <li><code>{{ '{{ student.parent_name }}' }}</code></li>
+                            <li><code>{{ '{{ student.parent_phone }}' }}</code></li>
+                            <li><code>{{ '{{ student.address }}' }}</code></li>
+                            <li><code>{{ '{{ section.full_code }}' }}</code></li>
+                            <li><code>{{ '{{ section.course_name }}' }}</code></li>
+                            <li><code>{{ '{{ section.year_number }}' }}</code></li>
+                            <li><code>{{ '{{ letter.ref }}' }}</code></li>
+                            <li><code>{{ '{{ letter.consecutive_days }}' }}</code></li>
+                            <li><code>{{ '{{ letter.absent_from_str }}' }}</code></li>
+                            <li><code>{{ '{{ letter.absent_to_str }}' }}</code></li>
+                            <li><code>{{ '{{ today_str }}' }}</code></li>
+                            <li><code>{{ '{{ monthly_summary }}' }}</code> — iterate rows of <code>{month, absent_days, month_pct, cumulative_pct}</code></li>
+                            <li><code>{{ '{{ template.signature_blocks }}' }}</code></li>
+                        </ul>
+                    </div>
+                </div>
+                {% if template %}
+                <div class="card shadow-sm mt-3">
+                    <div class="card-body">
+                        <h3 class="h6 mb-2"><i class="bi bi-eye me-2 text-primary"></i>Preview</h3>
+                        <p class="small text-muted mb-2">Renders the saved template with sample student data.</p>
+                        <a href="{{ url_for('admin_letter_template_preview', template_id=template.id) }}"
+                           target="_blank" class="btn btn-sm btn-outline-secondary w-100">
+                            <i class="bi bi-file-pdf"></i> Open preview PDF
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2 mt-3">
+            <a href="{{ url_for('admin_letter_templates') }}" class="btn btn-outline-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check2-circle"></i> Save
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+
+{% block title %}Holidays - NTTF Management{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header">
+        <h1 class="page-title"><i class="bi bi-calendar-event me-2"></i>Holidays</h1>
+        <p class="page-subtitle">Days that don't count toward continuous-absence streaks.</p>
+        <div class="admin-subnav mt-3">
+            <a href="{{ url_for('admin') }}" class="admin-tab">
+                <i class="bi bi-people"></i> Users
+            </a>
+            <a href="{{ url_for('admin_courses') }}" class="admin-tab">
+                <i class="bi bi-mortarboard-fill"></i> Courses
+            </a>
+            <a href="{{ url_for('admin_students') }}" class="admin-tab">
+                <i class="bi bi-people-fill"></i> Students
+            </a>
+            <a href="{{ url_for('admin_letters') }}" class="admin-tab">
+                <i class="bi bi-envelope-paper-fill"></i> Letters
+            </a>
+            <a href="{{ url_for('admin_holidays') }}" class="admin-tab is-active">
+                <i class="bi bi-calendar-event"></i> Holidays
+            </a>
+            <a href="{{ url_for('admin_letter_templates') }}" class="admin-tab">
+                <i class="bi bi-file-text"></i> Templates
+            </a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages() %}{% if messages %}{% for m in messages %}<div class="alert alert-info">{{ m }}</div>{% endfor %}{% endif %}{% endwith %}
+
+    <div class="row g-4">
+        <div class="col-lg-5">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h5 mb-3"><i class="bi bi-plus-circle me-2 text-primary"></i>Add a holiday</h2>
+                    <form method="POST" class="row g-3">
+                        <input type="hidden" name="action" value="add">
+                        <div class="col-md-5">
+                            <label class="form-label">Date</label>
+                            <input type="date" name="date" class="form-control" required>
+                        </div>
+                        <div class="col-md-7">
+                            <label class="form-label">Name</label>
+                            <input type="text" name="name" class="form-control"
+                                   placeholder="Independence Day" required>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Notes (optional)</label>
+                            <input type="text" name="notes" class="form-control">
+                        </div>
+                        <div class="col-12 text-end">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-plus-circle"></i> Add holiday
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-7">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                        <h2 class="h5 mb-0">
+                            <i class="bi bi-list-ul me-2 text-primary"></i>
+                            {{ year }} ({{ holidays|length }} holiday(s))
+                        </h2>
+                        <form method="GET" class="d-flex gap-2">
+                            <input type="number" name="year" class="form-control form-control-sm"
+                                   style="width:100px;" value="{{ year }}" min="2000" max="2099">
+                            <button type="submit" class="btn btn-sm btn-outline-secondary">Go</button>
+                        </form>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-striped align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Day</th>
+                                    <th>Name</th>
+                                    <th>Notes</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for h in holidays %}
+                                <tr>
+                                    <td>{{ h.date }}</td>
+                                    <td><small class="text-muted">{{ h.date.strftime('%A') }}</small></td>
+                                    <td><strong>{{ h.name }}</strong></td>
+                                    <td>{{ h.notes or '—' }}</td>
+                                    <td class="text-end">
+                                        <form method="POST" style="display:inline;">
+                                            <input type="hidden" name="action" value="delete">
+                                            <input type="hidden" name="holiday_id" value="{{ h.id }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                    onclick="return confirm('Remove holiday {{ h.date }}?');">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="5" class="text-center text-muted py-4">No holidays configured for {{ year }}.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

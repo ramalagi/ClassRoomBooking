@@ -1,0 +1,373 @@
+{% extends 'base.html' %}
+
+{% block title %}Subject Attendance - NTTF Management{% endblock %}
+
+{% block head %}
+<style>
+    .filter-bar { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); align-items: end; }
+    .status-cell { display: flex; gap: .35rem; flex-wrap: wrap; }
+    .status-pill {
+        display: inline-flex; align-items: center; gap: .25rem;
+        padding: .25rem .6rem;
+        border-radius: 999px;
+        border: 1.5px solid transparent;
+        background: #f1f5f9;
+        color: #475569;
+        font-size: .78rem;
+        cursor: pointer;
+        user-select: none;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+    }
+    .status-pill.is-active.present { background:#d1fae5; color:#047857; border-color:#10b981; }
+    .status-pill.is-active.absent  { background:#fee2e2; color:#b91c1c; border-color:#dc2626; }
+    .status-pill.is-active.late    { background:#fef3c7; color:#b45309; border-color:#f59e0b; }
+    .status-pill.is-active.leave   { background:#e0e7ff; color:#4338ca; border-color:#6366f1; }
+    .status-pill input { display: none; }
+    .row-locked { opacity: .55; }
+    .row-locked .status-pill { cursor: not-allowed; }
+    .summary-bar {
+        position: sticky; bottom: 0; z-index: 10;
+        background: rgba(255,255,255,.96);
+        backdrop-filter: blur(8px);
+        border-top: 1px solid var(--border, #e2e8f0);
+        padding: 1rem;
+        margin-top: 1rem;
+        display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+        border-radius: 12px;
+    }
+    .pill-counter { font-weight: 600; font-size: .9rem; }
+    .pill-counter .num { font-size: 1.1rem; font-weight: 700; }
+    .lock-badge {
+        display: inline-flex; align-items: center; gap: .25rem;
+        font-size: .75rem; padding: .15rem .5rem; border-radius: 999px;
+        background: #fef3c7; color: #92400e; font-weight: 600;
+    }
+    .empty-state-card { text-align: center; padding: 3rem 1rem; color: #64748b; }
+    .empty-state-card i { font-size: 3rem; opacity: .5; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header">
+        <h1 class="page-title"><i class="bi bi-book-half me-2"></i>Subject Attendance</h1>
+        <p class="page-subtitle">Period-wise attendance for a subject. Subject teachers only.</p>
+        <div><a href="{{ url_for('attendance_dashboard') }}" class="text-decoration-none">
+            <i class="bi bi-arrow-left"></i> Back
+        </a></div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <div class="filter-bar">
+                <div>
+                    <label class="form-label">Course</label>
+                    <select id="courseSel" class="form-select">
+                        <option value="">— Select course —</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Year</label>
+                    <select id="yearSel" class="form-select" disabled>
+                        <option value="">—</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Section</label>
+                    <select id="sectionSel" class="form-select" disabled>
+                        <option value="">—</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Subject</label>
+                    <select id="subjectSel" class="form-select" disabled>
+                        <option value="">—</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Session</label>
+                    <select id="sessionSel" class="form-select" disabled>
+                        <option value="">—</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Date</label>
+                    <input type="date" id="dateInput" class="form-control" readonly>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="rosterShell" hidden>
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                    <h2 class="h5 mb-0">
+                        <i class="bi bi-list-ul me-2 text-primary"></i>
+                        Roster <span class="text-muted small ms-2" id="rosterMeta"></span>
+                    </h2>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button class="btn btn-sm btn-outline-success" id="btnAllPresent">
+                            <i class="bi bi-check-all"></i> All Present
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" id="btnAllAbsent">
+                            <i class="bi bi-x-circle"></i> All Absent
+                        </button>
+                    </div>
+                </div>
+                <div id="denyBanner" class="alert alert-warning" hidden></div>
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width:90px;">Code</th>
+                                <th>Name</th>
+                                <th style="width:380px;">Status</th>
+                                <th style="width:120px;" class="text-end">State</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rosterBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="summary-bar">
+            <div class="d-flex gap-4 flex-wrap">
+                <span class="pill-counter text-success"><span class="num" id="cntPresent">0</span> Present</span>
+                <span class="pill-counter text-danger"><span class="num" id="cntAbsent">0</span> Absent</span>
+                <span class="pill-counter text-warning"><span class="num" id="cntLate">0</span> Late</span>
+                <span class="pill-counter" style="color:#4338ca;"><span class="num" id="cntLeave">0</span> Leave</span>
+                <span class="pill-counter text-muted"><span class="num" id="cntUnmarked">0</span> Unmarked</span>
+            </div>
+            <div>
+                <button class="btn btn-primary" id="btnSave">
+                    <i class="bi bi-check2-circle"></i> Save Attendance
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const courseSel = document.getElementById('courseSel');
+    const yearSel = document.getElementById('yearSel');
+    const sectionSel = document.getElementById('sectionSel');
+    const subjectSel = document.getElementById('subjectSel');
+    const sessionSel = document.getElementById('sessionSel');
+    const dateInput = document.getElementById('dateInput');
+    const rosterShell = document.getElementById('rosterShell');
+    const rosterBody = document.getElementById('rosterBody');
+    const rosterMeta = document.getElementById('rosterMeta');
+    const denyBanner = document.getElementById('denyBanner');
+    const counters = {
+        present: document.getElementById('cntPresent'),
+        absent:  document.getElementById('cntAbsent'),
+        late:    document.getElementById('cntLate'),
+        leave:   document.getElementById('cntLeave'),
+        unmarked: document.getElementById('cntUnmarked'),
+    };
+    const STATUSES = ['present', 'absent', 'late', 'leave'];
+
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    dateInput.value = `${yyyy}-${mm}-${dd}`;
+
+    let currentContext = null;
+    let students = [];
+
+    function reset(sel, placeholder) {
+        sel.innerHTML = `<option value="">${placeholder}</option>`;
+        sel.disabled = true;
+    }
+
+    // Initial: load courses
+    (async function init() {
+        const r = await fetch('/api/v2/courses');
+        const courses = await r.json();
+        courseSel.innerHTML = '<option value="">— Select course —</option>' +
+            courses.map(c => `<option value="${c.id}">${c.code} — ${c.name}</option>`).join('');
+    })();
+
+    courseSel.addEventListener('change', async () => {
+        reset(yearSel, '—'); reset(sectionSel, '—');
+        reset(subjectSel, '—'); reset(sessionSel, '—');
+        rosterShell.hidden = true;
+        if (!courseSel.value) return;
+        const r = await fetch(`/api/v2/years?course_id=${courseSel.value}`);
+        const years = await r.json();
+        yearSel.innerHTML = '<option value="">— Select year —</option>' +
+            years.map(y => `<option value="${y.id}">Year ${y.year_number}</option>`).join('');
+        yearSel.disabled = years.length === 0;
+    });
+    yearSel.addEventListener('change', async () => {
+        reset(sectionSel, '—'); reset(subjectSel, '—'); reset(sessionSel, '—');
+        rosterShell.hidden = true;
+        if (!yearSel.value) return;
+        const r = await fetch(`/api/v2/sections?course_year_id=${yearSel.value}`);
+        const sections = await r.json();
+        sectionSel.innerHTML = '<option value="">— Select section —</option>' +
+            sections.map(s => `<option value="${s.id}">${s.full_code}</option>`).join('');
+        sectionSel.disabled = sections.length === 0;
+    });
+    sectionSel.addEventListener('change', async () => {
+        reset(subjectSel, '—'); reset(sessionSel, '—');
+        rosterShell.hidden = true;
+        if (!sectionSel.value) return;
+        const [subjects, sessions] = await Promise.all([
+            fetch(`/api/v3/attendance/my-subjects?section_id=${sectionSel.value}`).then(r => r.json()),
+            fetch(`/api/v3/sessions?date=${dateInput.value}`).then(r => r.json()),
+        ]);
+        subjectSel.innerHTML = '<option value="">— Select subject —</option>' +
+            subjects.map(s => `<option value="${s.id}">${s.code} — ${s.name}</option>`).join('');
+        subjectSel.disabled = subjects.length === 0;
+        sessionSel.innerHTML = '<option value="">— Select session —</option>' +
+            sessions.map(s => `<option value="${s.id}">${s.period}</option>`).join('');
+        sessionSel.disabled = sessions.length === 0;
+    });
+    subjectSel.addEventListener('change', loadRosterIfReady);
+    sessionSel.addEventListener('change', loadRosterIfReady);
+
+    async function loadRosterIfReady() {
+        if (!(sectionSel.value && subjectSel.value && sessionSel.value)) {
+            rosterShell.hidden = true;
+            return;
+        }
+        rosterMeta.textContent = 'Loading…';
+        rosterShell.hidden = false;
+        denyBanner.hidden = true;
+        rosterBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">Loading roster…</td></tr>';
+        try {
+            const url = `/api/v3/attendance/roster?type=subject&section_id=${sectionSel.value}&subject_id=${subjectSel.value}&session_id=${sessionSel.value}&date=${dateInput.value}`;
+            const r = await fetch(url);
+            const data = await r.json();
+            if (data.error) { showDeny('Error: ' + data.error); return; }
+            currentContext = data.context;
+            students = data.students;
+            if (!currentContext.can_mark) {
+                showDeny(currentContext.deny_reason || 'Not authorized.');
+                renderRoster(true);
+                return;
+            }
+            renderRoster(false);
+        } catch (err) {
+            showDeny('Failed to load roster: ' + err.message);
+        }
+    }
+
+    function showDeny(msg) {
+        denyBanner.hidden = false;
+        denyBanner.textContent = msg;
+    }
+
+    function renderRoster(readonly) {
+        if (!students.length) {
+            rosterBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-5"><i class="bi bi-people" style="font-size:2rem;"></i><div class="mt-2">No students in this section yet.</div></td></tr>';
+            rosterMeta.textContent = '';
+            updateCounters();
+            return;
+        }
+        const subj = currentContext.subject ? currentContext.subject.code : '—';
+        rosterMeta.textContent = `${students.length} student(s) · ${currentContext.section.full_code} · ${subj}`;
+        rosterBody.innerHTML = students.map(s => {
+            const status = s.current_status || '';
+            const locked = s.is_locked || readonly;
+            const pills = STATUSES.map(st => `
+                <label class="status-pill ${st} ${status === st ? 'is-active' : ''}" data-status="${st}" data-student-id="${s.id}">
+                    <input type="radio" name="status_${s.id}" value="${st}" ${status === st ? 'checked' : ''} ${locked ? 'disabled' : ''}>
+                    ${st}
+                </label>
+            `).join('');
+            const state = locked
+                ? '<span class="lock-badge"><i class="bi bi-lock"></i> Locked</span>'
+                : (status ? '<span class="text-muted small">Marked</span>' : '<span class="text-muted small">—</span>');
+            return `<tr data-student-id="${s.id}" class="${locked ? 'row-locked' : ''}">
+                <td><span class="badge bg-primary">${s.code || '—'}</span></td>
+                <td>${escapeHtml(s.name)}</td>
+                <td><div class="status-cell">${pills}</div></td>
+                <td class="text-end">${state}</td>
+            </tr>`;
+        }).join('');
+        rosterBody.querySelectorAll('.status-pill').forEach(p => {
+            p.addEventListener('click', () => {
+                const row = p.closest('tr');
+                if (row.classList.contains('row-locked')) return;
+                const studentId = p.dataset.studentId;
+                const status = p.dataset.status;
+                row.querySelectorAll('.status-pill').forEach(x => x.classList.remove('is-active'));
+                p.classList.add('is-active');
+                p.querySelector('input').checked = true;
+                const s = students.find(x => String(x.id) === String(studentId));
+                if (s) s.current_status = status;
+                updateCounters();
+            });
+        });
+        updateCounters();
+    }
+
+    function updateCounters() {
+        const c = { present: 0, absent: 0, late: 0, leave: 0, unmarked: 0 };
+        students.forEach(s => {
+            if (!s.current_status) c.unmarked += 1;
+            else c[s.current_status] = (c[s.current_status] || 0) + 1;
+        });
+        Object.keys(counters).forEach(k => { counters[k].textContent = c[k] || 0; });
+    }
+
+    function setAll(status) {
+        if (!students.length) return;
+        students.forEach(s => {
+            const row = rosterBody.querySelector(`tr[data-student-id="${s.id}"]`);
+            if (!row || row.classList.contains('row-locked')) return;
+            s.current_status = status;
+            row.querySelectorAll('.status-pill').forEach(p => {
+                p.classList.toggle('is-active', p.dataset.status === status);
+                p.querySelector('input').checked = (p.dataset.status === status);
+            });
+        });
+        updateCounters();
+    }
+    document.getElementById('btnAllPresent').addEventListener('click', () => setAll('present'));
+    document.getElementById('btnAllAbsent').addEventListener('click', () => setAll('absent'));
+
+    document.getElementById('btnSave').addEventListener('click', async () => {
+        if (!currentContext) return;
+        const marks = students.filter(s => s.current_status)
+                              .map(s => ({ student_id: s.id, status: s.current_status }));
+        if (!marks.length) { alert('Nothing to save — at least one student must have a status.'); return; }
+        const body = {
+            type: 'subject',
+            section_id: currentContext.section.id,
+            subject_id: currentContext.subject.id,
+            session_id: currentContext.session_id,
+            date: dateInput.value,
+            marks,
+        };
+        const r = await fetch('/api/v3/attendance/mark', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        });
+        const data = await r.json();
+        if (!r.ok) { alert('Save failed: ' + (data.reason || data.error || 'unknown')); return; }
+        let msg = `Saved ${data.saved} mark(s).`;
+        if (data.skipped_locked) msg += ` ${data.skipped_locked} skipped (lock window).`;
+        if (data.absent_count) msg += ` ${data.absent_count} absent.`;
+        if (data.errors && data.errors.length) msg += '\n\nIssues:\n' + data.errors.join('\n');
+        alert(msg);
+        loadRosterIfReady();
+    });
+
+    function escapeHtml(s) {
+        return (s || '').replace(/[&<>"']/g, c => (
+            {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+        ));
+    }
+})();
+</script>
+{% endblock %}

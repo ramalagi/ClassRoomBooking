@@ -6,16 +6,22 @@
 <div class="container mt-4">
     <div class="page-header">
         <h1 class="page-title"><i class="bi bi-gear me-2"></i>Admin Panel</h1>
-        <p class="page-subtitle">Manage users, batches and students from one place.</p>
+        <p class="page-subtitle">Manage staff accounts (admin and faculty). Students are managed in the Students tab.</p>
         <div class="admin-subnav mt-3">
             <a href="{{ url_for('admin') }}" class="admin-tab is-active">
                 <i class="bi bi-people"></i> Users
+            </a>
+            <a href="{{ url_for('admin_courses') }}" class="admin-tab">
+                <i class="bi bi-mortarboard-fill"></i> Courses
             </a>
             <a href="{{ url_for('admin_batches') }}" class="admin-tab">
                 <i class="bi bi-collection"></i> Batches
             </a>
             <a href="{{ url_for('admin_students') }}" class="admin-tab">
-                <i class="bi bi-mortarboard"></i> Students
+                <i class="bi bi-people-fill"></i> Students
+            </a>
+            <a href="{{ url_for('admin_audit') }}" class="admin-tab">
+                <i class="bi bi-journal-text"></i> Audit
             </a>
         </div>
     </div>
@@ -30,30 +36,37 @@
 
     <div class="card mb-4 shadow-sm">
         <div class="card-body">
-            <h2 class="h5 mb-3">Add User</h2>
+            <h2 class="h5 mb-3">Add Staff User</h2>
+            <p class="text-muted small mb-3">
+                <i class="bi bi-info-circle me-1"></i>
+                A temporary password is generated and emailed to the staff member.
+                They'll be asked to set a new password on first login.
+            </p>
             <form method="POST" class="row g-3">
                 <input type="hidden" name="action" value="add">
                 <div class="col-md-2">
-                    <input type="text" name="username" class="form-control" placeholder="Username" required>
+                    <label class="form-label">Username</label>
+                    <input type="text" name="username" class="form-control" placeholder="e.g. jdoe" required>
                 </div>
                 <div class="col-md-2">
-                    <input type="password" name="password" class="form-control" placeholder="Password" required>
-                </div>
-                <div class="col-md-2">
+                    <label class="form-label">Role</label>
                     <select name="role" class="form-select" required>
-                        <option value="student">Student</option>
                         <option value="faculty">Faculty</option>
                         <option value="admin">Admin</option>
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <input type="text" name="name" class="form-control" placeholder="Full Name">
+                    <label class="form-label">Full Name</label>
+                    <input type="text" name="name" class="form-control" placeholder="Jane Doe">
                 </div>
                 <div class="col-md-3">
-                    <input type="email" name="email" class="form-control" placeholder="Email">
+                    <label class="form-label">Email <span class="text-danger">*</span></label>
+                    <input type="email" name="email" class="form-control" placeholder="jane@nttf.com" required>
                 </div>
-                <div class="col-12 text-end">
-                    <button type="submit" class="btn btn-success">Add User</button>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="bi bi-person-plus"></i> Add staff
+                    </button>
                 </div>
             </form>
         </div>
@@ -61,7 +74,7 @@
 
     <div class="card shadow-sm">
         <div class="card-body">
-            <h2 class="h5 mb-3">Users</h2>
+            <h2 class="h5 mb-3">Staff Users ({{ users|length }})</h2>
             <div class="table-responsive">
                 <table class="table table-striped align-middle">
                     <thead>
@@ -71,18 +84,49 @@
                             <th>Name</th>
                             <th>Email</th>
                             <th>Role</th>
+                            <th>Section Incharge</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for user in users %}
+                        {% set inch = incharge_map.get(user[0], []) %}
                         <tr>
                             <td>{{ user[0] }}</td>
                             <td>{{ user[1] }}</td>
-                            <td>{{ user[3] }}</td>
-                            <td>{{ user[4] }}</td>
-                            <td>{{ user[2] }}</td>
+                            <td>{{ user[3] or '—' }}</td>
+                            <td>{{ user[4] or '—' }}</td>
                             <td>
+                                {% if user[2] == 'admin' %}
+                                    <span class="badge bg-danger">Admin</span>
+                                {% else %}
+                                    <span class="badge bg-primary">Faculty</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if inch %}
+                                    {% for s in inch %}
+                                    <span class="badge bg-info text-dark me-1 mb-1"
+                                          title="{{ s.course }} — Section {{ s.section_code }}">
+                                        <i class="bi bi-grid-3x3-gap"></i> {{ s.full_code }}
+                                    </span>
+                                    {% endfor %}
+                                {% else %}
+                                    <span class="text-muted small">Not an incharge</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('admin_user_mappings', user_id=user[0]) }}"
+                                   class="btn btn-outline-primary btn-sm me-1" title="Manage section/subject/lab mappings">
+                                    <i class="bi bi-diagram-3"></i> Mappings
+                                </a>
+                                <form method="POST" action="{{ url_for('admin_reset_password', user_id=user[0]) }}" style="display:inline;">
+                                    <button type="submit" class="btn btn-outline-warning btn-sm me-1"
+                                            title="Generate a new temp password and email it"
+                                            onclick="return confirm('Reset password for {{ user[1] }}? A new temporary password will be emailed.');">
+                                        <i class="bi bi-key"></i> Reset
+                                    </button>
+                                </form>
                                 <form method="POST" style="display:inline;">
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="user_id" value="{{ user[0] }}">
@@ -90,6 +134,8 @@
                                 </form>
                             </td>
                         </tr>
+                        {% else %}
+                        <tr><td colspan="7" class="text-center text-muted py-4">No staff users yet.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

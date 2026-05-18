@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+
+{% block title %}Letter Templates - NTTF Management{% endblock %}
+
+{% block head %}
+<style>
+    .pill { display:inline-block; padding:.15rem .55rem; border-radius:999px;
+            font-size:.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+    .pill.default { background: #d1fae5; color: #047857; }
+    .pill.inactive { background: #f1f5f9; color: #64748b; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header">
+        <h1 class="page-title"><i class="bi bi-file-text me-2"></i>Letter Templates</h1>
+        <p class="page-subtitle">Edit the body HTML and signature blocks of absentee letters without code changes.</p>
+        <div class="admin-subnav mt-3">
+            <a href="{{ url_for('admin') }}" class="admin-tab">
+                <i class="bi bi-people"></i> Users
+            </a>
+            <a href="{{ url_for('admin_letters') }}" class="admin-tab">
+                <i class="bi bi-envelope-paper-fill"></i> Letters
+            </a>
+            <a href="{{ url_for('admin_holidays') }}" class="admin-tab">
+                <i class="bi bi-calendar-event"></i> Holidays
+            </a>
+            <a href="{{ url_for('admin_letter_templates') }}" class="admin-tab is-active">
+                <i class="bi bi-file-text"></i> Templates
+            </a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages() %}{% if messages %}{% for m in messages %}<div class="alert alert-info">{{ m }}</div>{% endfor %}{% endif %}{% endwith %}
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0">{{ templates|length }} template(s)</h2>
+        <a href="{{ url_for('admin_letter_template_new') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> New template
+        </a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Subject line</th>
+                            <th>Status</th>
+                            <th>Updated</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for t in templates %}
+                        <tr>
+                            <td>
+                                <strong>{{ t.name }}</strong>
+                                {% if t.is_default %}<span class="pill default ms-2">Default</span>{% endif %}
+                            </td>
+                            <td>{{ t.subject_line }}</td>
+                            <td>
+                                {% if t.is_active %}
+                                    <span class="badge bg-success">Active</span>
+                                {% else %}
+                                    <span class="pill inactive">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td><small class="text-muted">{{ t.updated_at.strftime('%Y-%m-%d %H:%M') if t.updated_at else '—' }}</small></td>
+                            <td class="text-end">
+                                <a href="{{ url_for('admin_letter_template_edit', template_id=t.id) }}"
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-pencil"></i> Edit
+                                </a>
+                                <a href="{{ url_for('admin_letter_template_preview', template_id=t.id) }}"
+                                   target="_blank" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-eye"></i> Preview
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="5" class="text-center text-muted py-4">No templates yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

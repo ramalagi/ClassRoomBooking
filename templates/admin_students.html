@@ -11,11 +11,17 @@
             <a href="{{ url_for('admin') }}" class="admin-tab">
                 <i class="bi bi-people"></i> Users
             </a>
+            <a href="{{ url_for('admin_courses') }}" class="admin-tab">
+                <i class="bi bi-mortarboard-fill"></i> Courses
+            </a>
             <a href="{{ url_for('admin_batches') }}" class="admin-tab">
                 <i class="bi bi-collection"></i> Batches
             </a>
             <a href="{{ url_for('admin_students') }}" class="admin-tab is-active">
-                <i class="bi bi-mortarboard"></i> Students
+                <i class="bi bi-people-fill"></i> Students
+            </a>
+            <a href="{{ url_for('admin_audit') }}" class="admin-tab">
+                <i class="bi bi-journal-text"></i> Audit
             </a>
         </div>
     </div>
@@ -52,26 +58,39 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Course</label>
-                            <input type="text" name="course" class="form-control" list="course-suggestions" placeholder="e.g. Computer Science" required>
-                            <datalist id="course-suggestions">
-                                {% for c in courses %}<option value="{{ c }}">{% endfor %}
-                            </datalist>
+                            <select id="addStudentCourse" class="form-select">
+                                <option value="">— Select course —</option>
+                                {% for c in courses %}
+                                <option value="{{ c.id }}">{{ c.code }} — {{ c.name }}</option>
+                                {% endfor %}
+                            </select>
+                            {% if not courses %}
+                                <small class="text-danger">No courses configured yet. Go to the Courses tab first.</small>
+                            {% else %}
+                                <small class="text-muted">Pick a course to unlock Year &amp; Section.</small>
+                            {% endif %}
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Year</label>
-                            <select name="year" class="form-select" required>
-                                <option value="1">1st Year</option>
-                                <option value="2">2nd Year</option>
-                                <option value="3">3rd Year</option>
+                            <select id="addStudentYear" class="form-select" disabled>
+                                <option value="">—</option>
                             </select>
+                            <small id="addStudentYearHint" class="text-muted">Select a course first.</small>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Section</label>
-                            <input type="text" name="section" class="form-control" placeholder="e.g. A" required>
+                            <select id="addStudentSection" name="section_id" class="form-select" disabled>
+                                <option value="">— Unassigned —</option>
+                            </select>
+                            <small id="addStudentSectionHint" class="text-muted">Select a year first. Leave blank for unassigned.</small>
                         </div>
-                        <div class="col-12">
+                        <div class="col-md-6">
                             <label class="form-label">Parent's name</label>
                             <input type="text" name="parent_name" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Address</label>
+                            <input type="text" name="address" class="form-control" placeholder="House no., street, city, PIN">
                         </div>
                         <div class="col-12 text-end">
                             <button type="submit" class="btn btn-primary">
@@ -88,7 +107,8 @@
                 <div class="card-body">
                     <h2 class="h5 mb-3"><i class="bi bi-file-earmark-excel me-2 text-success"></i>Bulk upload</h2>
                     <p class="text-muted small">Excel (.xlsx) with these column headers:</p>
-                    <code class="bulk-columns">student_code, name, email, course, year, section, parent_name, phone</code>
+                    <code class="bulk-columns">student_code, name, email, course, year, section, parent_name, phone, address</code>
+                    <small class="text-muted d-block mt-1"><code>address</code> is optional; the rest are required headers.</small>
                     <form method="POST" action="{{ url_for('admin_upload_students') }}" enctype="multipart/form-data" class="mt-3">
                         <label class="upload-drop" for="studentFile" id="uploadDrop">
                             <span class="upload-drop__icon"><i class="bi bi-cloud-arrow-up-fill"></i></span>
@@ -105,6 +125,74 @@
                             </a>
                         </div>
                     </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification prefs modal -->
+    <div class="modal fade" id="prefsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-envelope-gear me-2"></i>
+                        Parent notifications — <span id="prefsStudentName" class="text-muted"></span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info alert-sm small" id="prefsLoading" hidden>Loading…</div>
+                    <div class="alert alert-danger alert-sm small" id="prefsError" hidden></div>
+                    <div class="mb-3">
+                        <label class="form-label">Parent phone (SMS / WhatsApp)</label>
+                        <input type="tel" class="form-control" id="prefsPhone" placeholder="+91 9876543210">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Parent email</label>
+                        <input type="email" class="form-control" id="prefsEmail" placeholder="parent@example.com">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Channels to use</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="prefsMode" id="prefsModeInherit" value="inherit">
+                            <label class="form-check-label" for="prefsModeInherit">
+                                Use organisation default
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="prefsMode" id="prefsModeCustom" value="custom">
+                            <label class="form-check-label" for="prefsModeCustom">
+                                Custom channels:
+                            </label>
+                            <div class="ms-4 mt-1" id="prefsCustomBox">
+                                <div class="form-check">
+                                    <input class="form-check-input prefs-ch" type="checkbox" id="prefsChSms" value="sms">
+                                    <label class="form-check-label" for="prefsChSms">SMS</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input prefs-ch" type="checkbox" id="prefsChWa" value="whatsapp">
+                                    <label class="form-check-label" for="prefsChWa">WhatsApp</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input prefs-ch" type="checkbox" id="prefsChEmail" value="email">
+                                    <label class="form-check-label" for="prefsChEmail">Email</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="prefsMode" id="prefsModeOptOut" value="optout">
+                            <label class="form-check-label" for="prefsModeOptOut">
+                                Do not notify this parent
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="prefsSaveBtn">
+                        <i class="bi bi-check2-circle"></i> Save
+                    </button>
                 </div>
             </div>
         </div>
@@ -128,6 +216,7 @@
                             <th>Section</th>
                             <th>Parent</th>
                             <th>Phone</th>
+                            <th>Address</th>
                             <th class="text-end">Actions</th>
                         </tr>
                     </thead>
@@ -142,7 +231,20 @@
                             <td>{{ s[8] or '—' }}</td>
                             <td>{{ s[4] or '—' }}</td>
                             <td>{{ s[5] or '—' }}</td>
+                            <td>
+                                {% set addr = s[10] if s|length > 10 else None %}
+                                {% if addr %}
+                                    <span title="{{ addr }}">{{ addr if addr|length < 40 else addr[:37] + '…' }}</span>
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
                             <td class="text-end">
+                                <button type="button" class="btn btn-sm btn-outline-primary"
+                                        data-prefs-id="{{ s[0] }}" data-prefs-name="{{ s[2] }}"
+                                        title="Parent notification preferences">
+                                    <i class="bi bi-envelope-gear"></i>
+                                </button>
                                 <form method="POST" action="{{ url_for('admin_delete_student', student_id=s[0]) }}" style="display:inline;">
                                     <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete student {{ s[2] }}?')">
                                         <i class="bi bi-trash"></i>
@@ -151,7 +253,7 @@
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="9" class="text-center text-muted py-4">No students yet.</td></tr>
+                        <tr><td colspan="10" class="text-center text-muted py-4">No students yet.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -194,6 +296,162 @@
                 const text = tr.textContent.toLowerCase();
                 tr.style.display = text.includes(q) ? '' : 'none';
             });
+        });
+    }
+
+    // Per-student notification prefs modal
+    const prefsModalEl = document.getElementById('prefsModal');
+    if (prefsModalEl && window.bootstrap) {
+        const modal = new bootstrap.Modal(prefsModalEl);
+        let currentStudentId = null;
+        const $name  = document.getElementById('prefsStudentName');
+        const $phone = document.getElementById('prefsPhone');
+        const $email = document.getElementById('prefsEmail');
+        const $err   = document.getElementById('prefsError');
+        const $load  = document.getElementById('prefsLoading');
+        const $box   = document.getElementById('prefsCustomBox');
+        const modeRadios = document.querySelectorAll('input[name="prefsMode"]');
+        const chBoxes = document.querySelectorAll('.prefs-ch');
+
+        function setMode(mode) {
+            modeRadios.forEach(r => { r.checked = (r.value === mode); });
+            const enable = (mode === 'custom');
+            chBoxes.forEach(c => { c.disabled = !enable; if (!enable) c.checked = false; });
+        }
+
+        document.querySelectorAll('[data-prefs-id]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                currentStudentId = btn.dataset.prefsId;
+                $name.textContent = btn.dataset.prefsName || '';
+                $err.hidden = true; $load.hidden = false;
+                modal.show();
+                try {
+                    const r = await fetch(`/api/v3/students/${currentStudentId}/notify-prefs`);
+                    const data = await r.json();
+                    if (data.error) throw new Error(data.error);
+                    $phone.value = data.parent_phone || '';
+                    $email.value = data.parent_email || '';
+                    if (data.notify_channels === null) {
+                        setMode('inherit');
+                    } else if (Array.isArray(data.notify_channels) && data.notify_channels.length === 0) {
+                        setMode('optout');
+                    } else {
+                        setMode('custom');
+                        chBoxes.forEach(c => { c.checked = data.notify_channels.includes(c.value); });
+                    }
+                    $load.hidden = true;
+                } catch (e) {
+                    $err.hidden = false; $err.textContent = 'Failed to load: ' + e.message;
+                    $load.hidden = true;
+                }
+            });
+        });
+
+        modeRadios.forEach(r => r.addEventListener('change', () => setMode(r.value)));
+
+        document.getElementById('prefsSaveBtn').addEventListener('click', async () => {
+            const mode = document.querySelector('input[name="prefsMode"]:checked')?.value;
+            let channels;
+            if (mode === 'inherit') channels = null;
+            else if (mode === 'optout') channels = [];
+            else channels = Array.from(chBoxes).filter(c => c.checked).map(c => c.value);
+            const body = {
+                parent_phone: $phone.value.trim(),
+                parent_email: $email.value.trim(),
+                notify_channels: channels,
+            };
+            try {
+                const r = await fetch(`/api/v3/students/${currentStudentId}/notify-prefs`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(body),
+                });
+                const data = await r.json();
+                if (!r.ok) throw new Error(data.error || 'save failed');
+                modal.hide();
+            } catch (e) {
+                $err.hidden = false; $err.textContent = 'Save failed: ' + e.message;
+            }
+        });
+    }
+
+    // Cascading Course -> Year -> Section dropdowns on the Add Student form.
+    const courseSel   = document.getElementById('addStudentCourse');
+    const yearSel     = document.getElementById('addStudentYear');
+    const sectionSel  = document.getElementById('addStudentSection');
+    const yearHint    = document.getElementById('addStudentYearHint');
+    const sectionHint = document.getElementById('addStudentSectionHint');
+    if (courseSel && yearSel && sectionSel) {
+        const resetSelect = (sel, placeholder) => {
+            sel.innerHTML = `<option value="">${placeholder}</option>`;
+            sel.disabled = true;
+        };
+        const setHint = (el, text, tone='muted') => {
+            if (!el) return;
+            el.textContent = text;
+            el.className = 'text-' + tone;
+        };
+        courseSel.addEventListener('change', async () => {
+            resetSelect(yearSel, '—');
+            resetSelect(sectionSel, '— Unassigned —');
+            setHint(sectionHint, 'Select a year first. Leave blank for unassigned.');
+            if (!courseSel.value) {
+                setHint(yearHint, 'Select a course first.');
+                return;
+            }
+            setHint(yearHint, 'Loading…');
+            try {
+                const r = await fetch(`/api/v2/years?course_id=${courseSel.value}`);
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const years = await r.json();
+                if (!years.length) {
+                    yearSel.innerHTML = '<option value="">No years configured</option>';
+                    yearSel.disabled = true;
+                    setHint(yearHint, 'No years configured for this course. Add one in the Courses tab.', 'danger');
+                    return;
+                }
+                yearSel.innerHTML = '<option value="">— Select year —</option>';
+                years.forEach(y => {
+                    const opt = document.createElement('option');
+                    opt.value = y.id;
+                    opt.textContent = 'Year ' + y.year_number;
+                    yearSel.appendChild(opt);
+                });
+                yearSel.disabled = false;
+                setHint(yearHint, `${years.length} year(s) available.`);
+            } catch (err) {
+                console.error('years fetch failed', err);
+                setHint(yearHint, 'Failed to load years. Refresh the page.', 'danger');
+            }
+        });
+        yearSel.addEventListener('change', async () => {
+            resetSelect(sectionSel, '— Unassigned —');
+            if (!yearSel.value) {
+                setHint(sectionHint, 'Select a year first. Leave blank for unassigned.');
+                return;
+            }
+            setHint(sectionHint, 'Loading…');
+            try {
+                const r = await fetch(`/api/v2/sections?course_year_id=${yearSel.value}`);
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const sections = await r.json();
+                sectionSel.innerHTML = '<option value="">— Unassigned —</option>';
+                sections.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.id;
+                    opt.textContent = `${s.full_code} (Section ${s.section_code})`;
+                    sectionSel.appendChild(opt);
+                });
+                sectionSel.disabled = false;
+                if (sections.length === 0) {
+                    setHint(sectionHint, 'No sections configured for this year. Add one in the Courses tab — or leave as unassigned.', 'warning');
+                } else {
+                    setHint(sectionHint, `${sections.length} section(s) available. Leave blank for unassigned.`);
+                }
+            } catch (err) {
+                console.error('sections fetch failed', err);
+                setHint(sectionHint, 'Failed to load sections. Refresh the page.', 'danger');
+            }
         });
     }
 })();

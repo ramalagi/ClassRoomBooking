@@ -1,0 +1,165 @@
+{% extends 'base.html' %}
+
+{% block title %}Attendance Settings - NTTF Management{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header">
+        <h1 class="page-title"><i class="bi bi-sliders me-2"></i>Attendance Settings</h1>
+        <p class="page-subtitle">Org-wide rules for the attendance module.</p>
+        <div class="admin-subnav mt-3">
+            <a href="{{ url_for('admin') }}" class="admin-tab">
+                <i class="bi bi-people"></i> Users
+            </a>
+            <a href="{{ url_for('admin_courses') }}" class="admin-tab">
+                <i class="bi bi-mortarboard-fill"></i> Courses
+            </a>
+            <a href="{{ url_for('admin_batches') }}" class="admin-tab">
+                <i class="bi bi-collection"></i> Batches
+            </a>
+            <a href="{{ url_for('admin_students') }}" class="admin-tab">
+                <i class="bi bi-people-fill"></i> Students
+            </a>
+            <a href="{{ url_for('admin_notifications') }}" class="admin-tab">
+                <i class="bi bi-envelope-paper"></i> Notifications
+            </a>
+            <a href="{{ url_for('admin_audit') }}" class="admin-tab">
+                <i class="bi bi-journal-text"></i> Audit
+            </a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for m in messages %}<div class="alert alert-info">{{ m }}</div>{% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <form method="POST">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h2 class="h5 mb-3"><i class="bi bi-clock-history me-2 text-primary"></i>Lock window</h2>
+                        <div class="mb-3">
+                            <label class="form-label">Edit window (hours)</label>
+                            <input type="number" name="edit_window_hours" class="form-control"
+                                   min="0" max="720"
+                                   value="{{ settings.edit_window_hours }}" required>
+                            <small class="text-muted">After this many hours, faculty can no longer edit their own marks. Admin override is always allowed via the legacy backdate flow.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Allowed backdate days (admin only)</label>
+                            <input type="number" name="allow_backdate_days" class="form-control"
+                                   min="0" max="60"
+                                   value="{{ settings.allow_backdate_days }}" required>
+                            <small class="text-muted">0 = today only. Faculty are always today-only regardless of this value.</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mt-3">
+                    <div class="card-body">
+                        <h2 class="h5 mb-3"><i class="bi bi-envelope-paper me-2 text-primary"></i>Notifications</h2>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="notifyAbsent"
+                                   name="notify_absent"
+                                   {% if settings.notify_absent %}checked{% endif %}>
+                            <label class="form-check-label" for="notifyAbsent">
+                                Send a notification when a student is marked absent
+                            </label>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Default channels</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="chSms"
+                                       name="notify_channels" value="sms"
+                                       {% if 'sms' in settings.notify_channels %}checked{% endif %}>
+                                <label class="form-check-label" for="chSms">SMS</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="chWA"
+                                       name="notify_channels" value="whatsapp"
+                                       {% if 'whatsapp' in settings.notify_channels %}checked{% endif %}>
+                                <label class="form-check-label" for="chWA">WhatsApp</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="chEmail"
+                                       name="notify_channels" value="email"
+                                       {% if 'email' in settings.notify_channels %}checked{% endif %}>
+                                <label class="form-check-label" for="chEmail">Email</label>
+                            </div>
+                            <small class="text-muted">Per-student overrides take priority; see the Students page.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Message template</label>
+                            <textarea name="message_template" class="form-control" rows="5">{{ settings.message_template }}</textarea>
+                            <small class="text-muted">
+                                Placeholders: <code>{student_name}</code>, <code>{date}</code>, <code>{context}</code>
+                                (e.g. "section M1A" or "subject Mathematics (MA101)").
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end mt-3">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check2-circle"></i> Save settings
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h3 class="h6 mb-2"><i class="bi bi-info-circle me-2 text-primary"></i>How notifications flow</h3>
+                    <ol class="small mb-0 ps-3">
+                        <li>Faculty marks a student <strong>absent</strong>.</li>
+                        <li>The server resolves the parent's preferred channels
+                            (per-student override → org default → opt-out).</li>
+                        <li>One <code>ParentNotifications</code> row is queued
+                            per channel (deduplicated by attendance + channel).</li>
+                        <li>A background worker dispatches each row through
+                            its provider. Failures retry up to 5 times.</li>
+                        <li>You can monitor + retry on the
+                            <a href="{{ url_for('admin_notifications') }}">Notifications</a> page.</li>
+                    </ol>
+                </div>
+            </div>
+            <div class="card shadow-sm mt-3">
+                <div class="card-body">
+                    <h3 class="h6 mb-2"><i class="bi bi-plug me-2 text-primary"></i>Provider configuration</h3>
+                    <p class="small text-muted mb-2">Set these environment variables on the server to enable each channel.</p>
+                    <table class="table table-sm mb-0 small">
+                        <tr><td>Email (SMTP)</td>
+                            <td><code>SMTP_HOST</code>, <code>SMTP_USER</code>, <code>SMTP_PASSWORD</code></td></tr>
+                        <tr><td>SMS</td>
+                            <td><span class="text-muted">stub — wire a provider</span></td></tr>
+                        <tr><td>WhatsApp</td>
+                            <td><span class="text-muted">stub — wire a provider</span></td></tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mt-3">
+                <div class="card-body">
+                    <h3 class="h6 mb-2"><i class="bi bi-archive me-2 text-primary"></i>Data retention</h3>
+                    <p class="small text-muted">
+                        Attendance and notification rows older than <strong>2 years</strong> are
+                        archived into <code>AttendanceArchive</code> / <code>ParentNotificationsArchive</code>.
+                        Reports can opt-in to include the archive via the
+                        <em>Include archived rows</em> checkbox.
+                    </p>
+                    <form method="POST" action="{{ url_for('admin_attendance_archive') }}" class="mt-2">
+                        <button type="submit" class="btn btn-outline-warning btn-sm"
+                                onclick="return confirm('Move attendance + notification rows older than 2 years into the archive tables? This is reversible only by manual SQL.');">
+                            <i class="bi bi-archive"></i> Run archival now
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

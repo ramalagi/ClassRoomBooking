@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+
+{% block title %}Attendance - NTTF Management{% endblock %}
+
+{% block head %}
+<style>
+    .att-chooser {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 1.5rem;
+        margin-top: 2rem;
+    }
+    .att-card {
+        position: relative;
+        padding: 2rem 1.75rem;
+        border-radius: 16px;
+        background: var(--surface, #fff);
+        border: 1px solid var(--border, #e2e8f0);
+        text-decoration: none;
+        color: inherit;
+        transition: transform .15s, box-shadow .15s, border-color .15s;
+        display: flex;
+        flex-direction: column;
+        gap: .75rem;
+        min-height: 200px;
+    }
+    .att-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 30px -12px rgba(15, 23, 42, .35);
+        border-color: var(--brand-blue, #2563eb);
+        color: inherit;
+    }
+    .att-card__icon {
+        width: 48px; height: 48px;
+        border-radius: 12px;
+        background: var(--brand-blue-soft, #e8efff);
+        color: var(--brand-blue-dark, #1e3a8a);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+    .att-card__title { font-size: 1.2rem; font-weight: 700; }
+    .att-card__desc  { color: #64748b; font-size: .9rem; line-height: 1.4; }
+    .att-card__cta {
+        margin-top: auto;
+        font-weight: 600;
+        color: var(--brand-blue-dark, #1e3a8a);
+    }
+    .att-card__pill {
+        position: absolute;
+        top: 1rem; right: 1rem;
+        background: var(--brand-blue, #2563eb);
+        color: #fff;
+        font-size: .72rem;
+        font-weight: 700;
+        padding: .2rem .6rem;
+        border-radius: 999px;
+    }
+    .att-card.is-disabled {
+        opacity: .55;
+        cursor: not-allowed;
+        pointer-events: none;
+    }
+    .att-card.is-disabled .att-card__cta { color: #94a3b8; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header">
+        <h1 class="page-title"><i class="bi bi-clipboard-check me-2"></i>Attendance</h1>
+        <p class="page-subtitle">Pick the type of attendance you want to mark.</p>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for m in messages %}<div class="alert alert-info">{{ m }}</div>{% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="att-chooser">
+        <a href="{{ url_for('attendance_general') }}"
+           class="att-card {% if incharge_count == 0 and user.role != 'admin' %}is-disabled{% endif %}">
+            <span class="att-card__pill">{{ incharge_count }} section(s)</span>
+            <span class="att-card__icon"><i class="bi bi-grid-3x3-gap-fill"></i></span>
+            <div class="att-card__title">General Attendance</div>
+            <div class="att-card__desc">
+                Daily section attendance (morning &amp; evening). Available to <strong>Section Incharges</strong>.
+                {% if incharge_count == 0 and user.role != 'admin' %}
+                    <br><span class="text-danger">You are not the incharge of any section.</span>
+                {% endif %}
+            </div>
+            <div class="att-card__cta">
+                Open <i class="bi bi-arrow-right"></i>
+            </div>
+        </a>
+
+        <a href="{{ url_for('attendance_subject') }}"
+           class="att-card {% if subject_count == 0 and user.role != 'admin' %}is-disabled{% endif %}">
+            <span class="att-card__pill">{{ subject_count }} subject(s)</span>
+            <span class="att-card__icon"><i class="bi bi-book-half"></i></span>
+            <div class="att-card__title">Subject Attendance</div>
+            <div class="att-card__desc">
+                Period-wise attendance for a specific subject and session.
+                Available to <strong>Subject Teachers</strong>.
+                {% if subject_count == 0 and user.role != 'admin' %}
+                    <br><span class="text-danger">You are not assigned to any subjects.</span>
+                {% endif %}
+            </div>
+            <div class="att-card__cta">
+                Open <i class="bi bi-arrow-right"></i>
+            </div>
+        </a>
+
+        <a href="{{ url_for('attendance_reports') }}" class="att-card">
+            <span class="att-card__icon"><i class="bi bi-graph-up"></i></span>
+            <div class="att-card__title">Reports &amp; Analytics</div>
+            <div class="att-card__desc">
+                Section / subject / student-level reports with CSV &amp; Excel export.
+            </div>
+            <div class="att-card__cta">
+                Open <i class="bi bi-arrow-right"></i>
+            </div>
+        </a>
+    </div>
+</div>
+{% endblock %}

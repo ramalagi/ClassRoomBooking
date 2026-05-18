@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python app.py)",
+      "Bash(timeout 8 powershell -NoProfile -Command \"\\(Invoke-WebRequest -UseBasicParsing http://127.0.0.1:5000/login -TimeoutSec 5\\).StatusCode\")",
+      "Bash(./.venv/Scripts/python.exe -c ' *)",
+      "Bash(./.venv/Scripts/python.exe -c \"import app; print\\('IMPORT_OK'\\)\")"
+    ]
+  }
+}

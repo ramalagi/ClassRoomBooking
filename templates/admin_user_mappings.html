@@ -1,0 +1,268 @@
+{% extends 'base.html' %}
+
+{% block title %}Mappings — {{ target_user[3] or target_user[1] }}{% endblock %}
+
+{% block head %}
+<style>
+    .mapping-section { margin-bottom: 2.5rem; }
+    .mapping-group {
+        border: 1px solid var(--border, #e2e8f0);
+        border-radius: 12px;
+        margin-bottom: 1rem;
+        background: var(--surface, #fff);
+    }
+    .mapping-group__head {
+        background: var(--brand-blue-soft, #f4f8ff);
+        padding: .65rem 1rem;
+        font-weight: 600;
+        font-size: .9rem;
+        border-bottom: 1px solid var(--border, #e2e8f0);
+        border-top-left-radius: 12px;
+        border-top-right-radius: 12px;
+    }
+    .mapping-group__body {
+        padding: .5rem 1rem;
+    }
+    .mapping-row {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 1rem;
+        padding: .5rem 0;
+        border-bottom: 1px dashed var(--border, #e2e8f0);
+    }
+    .mapping-row:last-child { border-bottom: none; }
+    .mapping-row__id {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: .85rem;
+        color: #475569;
+        min-width: 90px;
+    }
+    .mapping-row__incharge {
+        font-size: .8rem;
+        color: #64748b;
+    }
+    .form-check.is-incharge {
+        margin-bottom: 0;
+    }
+    .empty-note {
+        color: #64748b;
+        font-size: .85rem;
+        padding: .5rem 0;
+    }
+    .breadcrumb-trail {
+        font-size: .85rem;
+        color: #64748b;
+        margin-top: .25rem;
+    }
+    .breadcrumb-trail a { color: var(--brand-blue-dark); text-decoration: none; }
+    .breadcrumb-trail a:hover { text-decoration: underline; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header">
+        <h1 class="page-title">
+            <i class="bi bi-person-gear me-2"></i>
+            Mappings —
+            <span class="text-muted">{{ target_user[3] or target_user[1] }}</span>
+            <span class="badge bg-secondary ms-2 align-middle">{{ target_user[2] }}</span>
+        </h1>
+        <p class="page-subtitle">Assign this user to Sections, Subjects, and Labs. Mark them as Incharge where applicable.</p>
+        <div class="breadcrumb-trail">
+            <a href="{{ url_for('admin') }}"><i class="bi bi-arrow-left"></i> Back to Users</a>
+        </div>
+        <div class="admin-subnav mt-3">
+            <a href="{{ url_for('admin') }}" class="admin-tab is-active">
+                <i class="bi bi-people"></i> Users
+            </a>
+            <a href="{{ url_for('admin_courses') }}" class="admin-tab">
+                <i class="bi bi-mortarboard-fill"></i> Courses
+            </a>
+            <a href="{{ url_for('admin_batches') }}" class="admin-tab">
+                <i class="bi bi-collection"></i> Batches
+            </a>
+            <a href="{{ url_for('admin_students') }}" class="admin-tab">
+                <i class="bi bi-people-fill"></i> Students
+            </a>
+            <a href="{{ url_for('admin_audit') }}" class="admin-tab">
+                <i class="bi bi-journal-text"></i> Audit
+            </a>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-info">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {# ----------------- Sections ----------------- #}
+    <div class="mapping-section">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h5 mb-0"><i class="bi bi-grid-3x3-gap me-2 text-primary"></i>Sections</h2>
+            <small class="text-muted">Only one staff can be Incharge per section (rule will swap if you assign here).</small>
+        </div>
+        <form method="POST" action="{{ url_for('admin_save_user_sections', user_id=target_user[0]) }}">
+            {% if section_tree %}
+                {% for course in section_tree %}
+                    {% for year in course.years %}
+                        {% if year.sections %}
+                        <div class="mapping-group">
+                            <div class="mapping-group__head">
+                                {{ course.code }} — {{ course.name }} — Year {{ year.year_number }}
+                            </div>
+                            <div class="mapping-group__body">
+                                {% for s in year.sections %}
+                                {% if s.is_active %}
+                                <label class="mapping-row" for="sec_{{ s.id }}">
+                                    <input type="checkbox" id="sec_{{ s.id }}" name="section_id" value="{{ s.id }}"
+                                           class="form-check-input mapping-row__check"
+                                           {% if s.is_assigned %}checked{% endif %}>
+                                    <span>
+                                        <span class="mapping-row__id">{{ s.full_code }}</span>
+                                        <span class="text-muted ms-2">Section {{ s.section_code }}</span>
+                                    </span>
+                                    <span class="form-check is-incharge">
+                                        <input type="checkbox" class="form-check-input"
+                                               id="sec_inch_{{ s.id }}"
+                                               name="incharge_{{ s.id }}" value="1"
+                                               {% if s.is_incharge %}checked{% endif %}
+                                               {% if not s.is_assigned %}disabled{% endif %}>
+                                        <label class="form-check-label mapping-row__incharge"
+                                               for="sec_inch_{{ s.id }}">Incharge</label>
+                                    </span>
+                                </label>
+                                {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                {% endfor %}
+            {% else %}
+                <p class="empty-note">No sections configured yet. Add them in the Courses page.</p>
+            {% endif %}
+            <div class="text-end mt-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> Save sections
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {# ----------------- Subjects ----------------- #}
+    <div class="mapping-section">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h5 mb-0"><i class="bi bi-book me-2 text-primary"></i>Subjects</h2>
+        </div>
+        <form method="POST" action="{{ url_for('admin_save_user_subjects', user_id=target_user[0]) }}">
+            {% if subject_groups %}
+                {% for grp in subject_groups %}
+                <div class="mapping-group">
+                    <div class="mapping-group__head">{{ grp.label }}</div>
+                    <div class="mapping-group__body">
+                        {% for s in grp['items'] %}
+                        <label class="mapping-row" for="sub_{{ s.id }}">
+                            <input type="checkbox" id="sub_{{ s.id }}" name="subject_id" value="{{ s.id }}"
+                                   class="form-check-input mapping-row__check"
+                                   {% if s.is_assigned %}checked{% endif %}>
+                            <span>
+                                <span class="mapping-row__id">{{ s.code }}</span>
+                                <span class="text-muted ms-2">{{ s.name }}</span>
+                            </span>
+                            <span class="form-check is-incharge">
+                                <input type="checkbox" class="form-check-input"
+                                       id="sub_inch_{{ s.id }}"
+                                       name="incharge_{{ s.id }}" value="1"
+                                       {% if s.is_incharge %}checked{% endif %}
+                                       {% if not s.is_assigned %}disabled{% endif %}>
+                                <label class="form-check-label mapping-row__incharge"
+                                       for="sub_inch_{{ s.id }}">Incharge</label>
+                            </span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="empty-note">No subjects configured yet.</p>
+            {% endif %}
+            <div class="text-end mt-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> Save subjects
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {# ----------------- Labs ----------------- #}
+    <div class="mapping-section">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h5 mb-0"><i class="bi bi-cpu me-2 text-primary"></i>Labs</h2>
+        </div>
+        <form method="POST" action="{{ url_for('admin_save_user_labs', user_id=target_user[0]) }}">
+            {% if lab_groups %}
+                {% for grp in lab_groups %}
+                <div class="mapping-group">
+                    <div class="mapping-group__head">{{ grp.label }}</div>
+                    <div class="mapping-group__body">
+                        {% for l in grp['items'] %}
+                        <label class="mapping-row" for="lab_{{ l.id }}">
+                            <input type="checkbox" id="lab_{{ l.id }}" name="lab_id" value="{{ l.id }}"
+                                   class="form-check-input mapping-row__check"
+                                   {% if l.is_assigned %}checked{% endif %}>
+                            <span>
+                                <span class="mapping-row__id">{{ l.code }}</span>
+                                <span class="text-muted ms-2">{{ l.name }}</span>
+                            </span>
+                            <span class="form-check is-incharge">
+                                <input type="checkbox" class="form-check-input"
+                                       id="lab_inch_{{ l.id }}"
+                                       name="incharge_{{ l.id }}" value="1"
+                                       {% if l.is_incharge %}checked{% endif %}
+                                       {% if not l.is_assigned %}disabled{% endif %}>
+                                <label class="form-check-label mapping-row__incharge"
+                                       for="lab_inch_{{ l.id }}">Incharge</label>
+                            </span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="empty-note">No labs configured yet.</p>
+            {% endif %}
+            <div class="text-end mt-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-save"></i> Save labs
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    // Keep the "Incharge" checkbox disabled until the "Assigned" checkbox is ticked.
+    document.querySelectorAll('.mapping-row__check').forEach(check => {
+        check.addEventListener('change', () => {
+            const row = check.closest('.mapping-row');
+            const inch = row.querySelector('.is-incharge input[type="checkbox"]');
+            if (!inch) return;
+            if (check.checked) {
+                inch.disabled = false;
+            } else {
+                inch.disabled = true;
+                inch.checked = false;
+            }
+        });
+    });
+})();
+</script>
+{% endblock %}

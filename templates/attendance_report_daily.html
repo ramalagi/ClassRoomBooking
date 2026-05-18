@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+
+{% block title %}Daily Absentees - Attendance Reports{% endblock %}
+
+{% block head %}
+<style>
+    .type-pill { font-size:.7rem; padding:.15rem .5rem; border-radius:999px; font-weight:600; text-transform:uppercase; }
+    .type-pill.general { background:#e0e7ff; color:#4338ca; }
+    .type-pill.subject { background:#cffafe; color:#0e7490; }
+    .type-pill.lab     { background:#fce7f3; color:#be185d; }
+    .contact-pill { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:.78rem; color:#475569; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header">
+        <h1 class="page-title"><i class="bi bi-calendar-event me-2"></i>Daily Absentees</h1>
+        <p class="page-subtitle">Students marked absent on the chosen date, with parent contacts for follow-up.</p>
+        <div><a href="{{ url_for('attendance_reports') }}" class="text-decoration-none">
+            <i class="bi bi-arrow-left"></i> Back to Reports
+        </a></div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <form method="GET" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">Date</label>
+                    <input type="date" name="date" class="form-control" value="{{ date_str }}" required>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label">Section <small class="text-muted">(optional)</small></label>
+                    <select name="section_id" class="form-select">
+                        <option value="">— All sections —</option>
+                        {% for s in sections %}
+                        <option value="{{ s.id }}" {% if section_id and s.id == section_id %}selected{% endif %}>
+                            {{ s.full_code }} — {{ s.course_name }} Year {{ s.year_number }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-funnel"></i> Apply
+                    </button>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    {% if rows %}
+                    <a href="{{ url_for('attendance_report_daily', date=date_str, section_id=section_id, include_archive='1' if include_archive else '', export='csv') }}" class="btn btn-outline-secondary w-100">
+                        <i class="bi bi-download"></i> CSV
+                    </a>
+                    {% endif %}
+                </div>
+                <div class="col-12">
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" name="include_archive" value="1" id="incArc" {% if include_archive %}checked{% endif %}>
+                        <label class="form-check-label" for="incArc">Include archived rows (older than 2 years)</label>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h2 class="h5 mb-3">
+                <i class="bi bi-list-ul me-2 text-primary"></i>
+                {{ rows|length }} absentee(s) on {{ date_str }}
+            </h2>
+            {% if rows %}
+            <div class="table-responsive">
+                <table class="table table-striped align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Student</th>
+                            <th>Section</th>
+                            <th>Type</th>
+                            <th>Period / Subject</th>
+                            <th>Parent Contact</th>
+                            <th>Marked By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in rows %}
+                        <tr>
+                            <td>
+                                <div><strong>{{ r.name }}</strong></div>
+                                <small class="text-muted">{{ r.student_code or '—' }}</small>
+                            </td>
+                            <td>
+                                <code>{{ r.section_code }}</code>
+                                <div><small class="text-muted">{{ r.course_name }} Y{{ r.year_number }}</small></div>
+                            </td>
+                            <td><span class="type-pill {{ r.type }}">{{ r.type }}</span></td>
+                            <td>
+                                {% if r.type == 'general' %}
+                                    {{ r.period|title }}
+                                {% elif r.subject_name %}
+                                    {{ r.subject_name }} <small class="text-muted">({{ r.subject_code }})</small>
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if r.parent_phone %}<div class="contact-pill">📱 {{ r.parent_phone }}</div>{% endif %}
+                                {% if r.parent_email %}<div class="contact-pill">✉️ {{ r.parent_email }}</div>{% endif %}
+                                {% if not r.parent_phone and not r.parent_email %}
+                                    <small class="text-warning">No contact info</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {{ r.marked_by_name or r.marked_by_username or '—' }}
+                                <div><small class="text-muted">{{ r.marked_at.strftime('%H:%M') if r.marked_at else '' }}</small></div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center text-muted py-5">
+                <i class="bi bi-emoji-smile" style="font-size: 2rem;"></i>
+                <p class="mt-2 mb-0">No absentees recorded on {{ date_str }}.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+
+{% block title %}Attendance Reports - NTTF Management{% endblock %}
+
+{% block head %}
+<style>
+    .rep-chooser {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 1.25rem;
+        margin-top: 1.5rem;
+    }
+    .rep-card {
+        position: relative;
+        padding: 1.5rem;
+        border-radius: 14px;
+        background: var(--surface, #fff);
+        border: 1px solid var(--border, #e2e8f0);
+        text-decoration: none;
+        color: inherit;
+        transition: transform .15s, box-shadow .15s, border-color .15s;
+        display: flex; flex-direction: column; gap: .5rem;
+        min-height: 160px;
+    }
+    .rep-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 24px -12px rgba(15, 23, 42, .3);
+        border-color: var(--brand-blue, #2563eb);
+        color: inherit;
+    }
+    .rep-card__icon {
+        width: 40px; height: 40px; border-radius: 10px;
+        background: var(--brand-blue-soft, #e8efff);
+        color: var(--brand-blue-dark, #1e3a8a);
+        display: inline-flex; align-items: center; justify-content: center;
+        font-size: 1.2rem;
+    }
+    .rep-card__title { font-size: 1.05rem; font-weight: 700; }
+    .rep-card__desc { color: #64748b; font-size: .85rem; line-height: 1.4; }
+    .rep-card__cta {
+        margin-top: auto; font-weight: 600;
+        color: var(--brand-blue-dark, #1e3a8a);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header">
+        <h1 class="page-title"><i class="bi bi-graph-up me-2"></i>Attendance Reports</h1>
+        <p class="page-subtitle">Pick the report you need.</p>
+        <div><a href="{{ url_for('attendance_dashboard') }}" class="text-decoration-none">
+            <i class="bi bi-arrow-left"></i> Back to Attendance
+        </a></div>
+    </div>
+
+    <div class="rep-chooser">
+        <a href="{{ url_for('attendance_report_section') }}" class="rep-card">
+            <span class="rep-card__icon"><i class="bi bi-grid-3x3-gap"></i></span>
+            <div class="rep-card__title">Section Summary</div>
+            <div class="rep-card__desc">Per-student attendance % for a section over a date range.</div>
+            <div class="rep-card__cta">Open <i class="bi bi-arrow-right"></i></div>
+        </a>
+        <a href="{{ url_for('attendance_report_subject') }}" class="rep-card">
+            <span class="rep-card__icon"><i class="bi bi-book"></i></span>
+            <div class="rep-card__title">Subject Summary</div>
+            <div class="rep-card__desc">Per-student % for one subject across its sections.</div>
+            <div class="rep-card__cta">Open <i class="bi bi-arrow-right"></i></div>
+        </a>
+        <a href="{{ url_for('attendance_report_daily') }}" class="rep-card">
+            <span class="rep-card__icon"><i class="bi bi-calendar-event"></i></span>
+            <div class="rep-card__title">Daily Absentees</div>
+            <div class="rep-card__desc">Who was marked absent today (or a chosen date) + parent contacts.</div>
+            <div class="rep-card__cta">Open <i class="bi bi-arrow-right"></i></div>
+        </a>
+        {% if user.role == 'admin' %}
+        <a href="{{ url_for('attendance_report_faculty') }}" class="rep-card">
+            <span class="rep-card__icon"><i class="bi bi-person-badge"></i></span>
+            <div class="rep-card__title">Faculty Activity</div>
+            <div class="rep-card__desc">Per-day marking activity by each faculty member.</div>
+            <div class="rep-card__cta">Open <i class="bi bi-arrow-right"></i></div>
+        </a>
+        {% endif %}
+        <a href="{{ url_for('admin_notifications') if user.role == 'admin' else 'javascript:void(0)' }}"
+           class="rep-card {% if user.role != 'admin' %}is-disabled{% endif %}">
+            <span class="rep-card__icon"><i class="bi bi-envelope-paper"></i></span>
+            <div class="rep-card__title">Notification History</div>
+            <div class="rep-card__desc">Parent absence-notification queue + delivery log.</div>
+            <div class="rep-card__cta">{% if user.role == 'admin' %}Open <i class="bi bi-arrow-right"></i>{% else %}Admin only{% endif %}</div>
+        </a>
+    </div>
+</div>
+{% endblock %}

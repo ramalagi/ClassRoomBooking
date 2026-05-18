@@ -1,0 +1,197 @@
+{% extends 'base.html' %}
+
+{% block title %}Audit Log - NTTF Management{% endblock %}
+
+{% block head %}
+<style>
+    .audit-table { font-size: .9rem; }
+    .audit-table td { vertical-align: top; }
+    .audit-action-pill {
+        display: inline-block;
+        padding: .15rem .55rem;
+        border-radius: 999px;
+        font-size: .72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        background: #e0e7ff;
+        color: #4338ca;
+    }
+    .audit-action-pill.create   { background: #d1fae5; color: #047857; }
+    .audit-action-pill.update   { background: #fef3c7; color: #b45309; }
+    .audit-action-pill.delete   { background: #fee2e2; color: #b91c1c; }
+    .audit-action-pill.commit   { background: #ede9fe; color: #6d28d9; }
+    .audit-action-pill.replace  { background: #cffafe; color: #0e7490; }
+    .audit-action-pill.set_incharge { background: #fce7f3; color: #be185d; }
+    .audit-diff {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: .75rem;
+        margin-top: .5rem;
+    }
+    .audit-diff__col h6 {
+        font-size: .72rem;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #64748b;
+        margin-bottom: .25rem;
+    }
+    .audit-diff__col pre {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: .5rem;
+        font-size: .75rem;
+        max-height: 12rem;
+        overflow: auto;
+        margin: 0;
+    }
+    .audit-diff__col.before pre { background: #fef9f9; border-color: #fecaca; }
+    .audit-diff__col.after  pre { background: #f0fdf4; border-color: #bbf7d0; }
+    details.audit-row > summary { cursor: pointer; list-style: none; }
+    details.audit-row > summary::-webkit-details-marker { display: none; }
+    details.audit-row[open] > summary .chev { transform: rotate(90deg); }
+    .chev { display: inline-block; transition: transform .15s; }
+    .ts-cell { white-space: nowrap; color: #475569; font-variant-numeric: tabular-nums; }
+    .id-cell {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: .82rem;
+        color: #475569;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="page-header">
+        <h1 class="page-title"><i class="bi bi-journal-text me-2"></i>Audit Log</h1>
+        <p class="page-subtitle">Every admin write across Courses, Sections, Subjects, Labs, mappings and student uploads is recorded here.</p>
+        <div class="admin-subnav mt-3">
+            <a href="{{ url_for('admin') }}" class="admin-tab">
+                <i class="bi bi-people"></i> Users
+            </a>
+            <a href="{{ url_for('admin_courses') }}" class="admin-tab">
+                <i class="bi bi-mortarboard-fill"></i> Courses
+            </a>
+            <a href="{{ url_for('admin_batches') }}" class="admin-tab">
+                <i class="bi bi-collection"></i> Batches
+            </a>
+            <a href="{{ url_for('admin_students') }}" class="admin-tab">
+                <i class="bi bi-people-fill"></i> Students
+            </a>
+            <a href="{{ url_for('admin_audit') }}" class="admin-tab is-active">
+                <i class="bi bi-journal-text"></i> Audit
+            </a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="GET" class="row g-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">Entity</label>
+                    <select name="entity" class="form-select">
+                        <option value="">All entities</option>
+                        {% for e in entities %}
+                            <option value="{{ e }}" {% if e == filter_entity %}selected{% endif %}>{{ e }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Entity ID</label>
+                    <input type="number" name="entity_id" class="form-control"
+                           value="{{ filter_entity_id if filter_entity_id is not none else '' }}" placeholder="any">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Action</label>
+                    <input type="text" name="action" class="form-control"
+                           value="{{ filter_action or '' }}" placeholder="any (e.g. create, update)">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Limit</label>
+                    <select name="limit" class="form-select">
+                        {% for n in [50, 100, 200, 500, 1000] %}
+                            <option value="{{ n }}" {% if n == filter_limit %}selected{% endif %}>{{ n }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary flex-grow-1">
+                        <i class="bi bi-funnel"></i> Filter
+                    </button>
+                    <a href="{{ url_for('admin_audit') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-x-circle"></i>
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h2 class="h5 mb-3">
+                <i class="bi bi-list-ol me-2 text-primary"></i>
+                {{ entries|length }} entrie(s)
+                {% if filter_entity or filter_entity_id is not none or filter_action %}
+                    (filtered)
+                {% endif %}
+            </h2>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle audit-table mb-0">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>When</th>
+                            <th>Actor</th>
+                            <th>Entity</th>
+                            <th>ID</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for e in entries %}
+                        <tr>
+                            <td colspan="6" class="p-0">
+                                <details class="audit-row">
+                                    <summary>
+                                        <table class="audit-table w-100">
+                                            <tr>
+                                                <td style="width:30px;"><span class="chev"><i class="bi bi-chevron-right"></i></span></td>
+                                                <td class="ts-cell" style="width:160px;">{{ e.created_at.strftime('%Y-%m-%d %H:%M:%S') if e.created_at else '—' }}</td>
+                                                <td style="width:180px;">{{ e.actor_name }}</td>
+                                                <td style="width:160px;"><code>{{ e.entity }}</code></td>
+                                                <td class="id-cell" style="width:90px;">{{ e.entity_id if e.entity_id is not none else '—' }}</td>
+                                                <td>
+                                                    <span class="audit-action-pill {{ e.action }}">{{ e.action }}</span>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </summary>
+                                    <div class="px-3 pb-3">
+                                        <div class="audit-diff">
+                                            <div class="audit-diff__col before">
+                                                <h6>Before</h6>
+                                                <pre>{% if e.before %}{{ e.before | tojson(indent=2) }}{% else %}<span class="text-muted">—</span>{% endif %}</pre>
+                                            </div>
+                                            <div class="audit-diff__col after">
+                                                <h6>After</h6>
+                                                <pre>{% if e.after %}{{ e.after | tojson(indent=2) }}{% else %}<span class="text-muted">—</span>{% endif %}</pre>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </details>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" class="text-center text-muted py-5">
+                            <i class="bi bi-inbox" style="font-size:2rem;"></i>
+                            <div class="mt-2">No audit entries match the filter.</div>
+                        </td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
